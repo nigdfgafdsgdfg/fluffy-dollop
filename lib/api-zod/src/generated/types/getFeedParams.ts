@@ -6,6 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface HealthStatus {
-  status: string;
-}
+export type GetFeedParams = {
+  limit?: number;
+  /**
+   * @nullable
+   */
+  cursor?: string | null;
+};

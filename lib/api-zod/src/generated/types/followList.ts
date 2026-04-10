@@ -5,7 +5,8 @@
  * Twitter-like API specification with Firebase Auth
  * OpenAPI spec version: 0.1.0
  */
+import type { FollowEntry } from "./followEntry";
 
-export interface HealthStatus {
-  status: string;
+export interface FollowList {
+  users: FollowEntry[];
 }

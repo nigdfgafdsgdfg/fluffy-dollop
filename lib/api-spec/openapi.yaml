@@ -3,13 +3,23 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Twitter-like API specification with Firebase Auth
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication and user session
+  - name: users
+    description: User profile operations
+  - name: posts
+    description: Post CRUD operations
+  - name: follows
+    description: Follow/unfollow operations
+  - name: feed
+    description: Feed operations
 paths:
   /healthz:
     get:
@@ -24,7 +34,377 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users:
+    post:
+      operationId: createUserProfile
+      tags: [users]
+      summary: Create user profile after signup
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserProfileBody"
+      responses:
+        "201":
+          description: User profile created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: User profile already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{userId}:
+    get:
+      operationId: getUserProfile
+      tags: [users]
+      summary: Get user profile by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{userId}/posts:
+    get:
+      operationId: getUserPosts
+      tags: [posts]
+      summary: Fetch all posts by a specific user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of posts by user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedPosts"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{userId}/followers:
+    get:
+      operationId: getUserFollowers
+      tags: [follows]
+      summary: Get list of followers for a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of followers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowList"
+
+  /users/{userId}/following:
+    get:
+      operationId: getUserFollowing
+      tags: [follows]
+      summary: Get list of users a user is following
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of users being followed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowList"
+
+  /posts:
+    post:
+      operationId: createPost
+      tags: [posts]
+      summary: Create a new text post
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePostBody"
+      responses:
+        "201":
+          description: Post created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts/{postId}:
+    get:
+      operationId: getPost
+      tags: [posts]
+      summary: Get a single post by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Post details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Post"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deletePost
+      tags: [posts]
+      summary: Delete a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Post deleted
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - not the post owner
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /follows/{targetUserId}:
+    post:
+      operationId: followUser
+      tags: [follows]
+      summary: Follow a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: targetUserId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successfully followed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowResult"
+        "400":
+          description: Cannot follow yourself
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already following
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: unfollowUser
+      tags: [follows]
+      summary: Unfollow a user
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: targetUserId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successfully unfollowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FollowResult"
+        "400":
+          description: Not following this user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /feed:
+    get:
+      operationId: getFeed
+      tags: [feed]
+      summary: Get personalized feed based on who the user follows
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Paginated feed of posts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedPosts"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +414,153 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    UserProfile:
+      type: object
+      properties:
+        uid:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        bio:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        followersCount:
+          type: integer
+        followingCount:
+          type: integer
+        postsCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - uid
+        - username
+        - displayName
+        - bio
+        - avatarUrl
+        - followersCount
+        - followingCount
+        - postsCount
+        - createdAt
+
+    CreateUserProfileBody:
+      type: object
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        bio:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+      required:
+        - username
+        - displayName
+
+    Post:
+      type: object
+      properties:
+        id:
+          type: string
+        authorId:
+          type: string
+        authorUsername:
+          type: string
+        authorDisplayName:
+          type: string
+        authorAvatarUrl:
+          type: ["string", "null"]
+        content:
+          type: string
+        likesCount:
+          type: integer
+        commentsCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - authorId
+        - authorUsername
+        - authorDisplayName
+        - authorAvatarUrl
+        - content
+        - likesCount
+        - commentsCount
+        - createdAt
+
+    CreatePostBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    PaginatedPosts:
+      type: object
+      properties:
+        posts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Post"
+        nextCursor:
+          type: ["string", "null"]
+        hasMore:
+          type: boolean
+      required:
+        - posts
+        - nextCursor
+        - hasMore
+
+    FollowResult:
+      type: object
+      properties:
+        following:
+          type: boolean
+        targetUserId:
+          type: string
+      required:
+        - following
+        - targetUserId
+
+    FollowEntry:
+      type: object
+      properties:
+        uid:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        avatarUrl:
+          type: ["string", "null"]
+      required:
+        - uid
+        - username
+        - displayName
+        - avatarUrl
+
+    FollowList:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/FollowEntry"
+      required:
+        - users

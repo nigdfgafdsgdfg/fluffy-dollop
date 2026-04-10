@@ -1,5 +1,8 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { getFirebaseApp } from "./lib/firebase";
+
+getFirebaseApp();
 
 const rawPort = process.env["PORT"];
 
