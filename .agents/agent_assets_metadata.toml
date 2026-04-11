@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "9tZWwsSP6c4PZA4a47RPg"
+uri = "file://artifacts/frontend/assets/images/icon.png"
+type = "image"
+title = "twitter app icon"
