@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Never commit Firebase / GCP service account keys (use FIREBASE_SERVICE_ACCOUNT_JSON)
+/attached_assets/
