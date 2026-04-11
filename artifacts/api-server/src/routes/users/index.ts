@@ -1,99 +1,125 @@
 import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
 import { authenticate, type AuthenticatedRequest } from "../../middlewares/authenticate";
+import { writeLimiter } from "../../middlewares/rateLimiter";
 import { getFirestore, FieldValue, Timestamp } from "../../lib/firebase";
+import {
+  CreateUserProfileSchema,
+  PaginationQuerySchema,
+  UserIdParamSchema,
+} from "../../lib/validation";
 
 const router: IRouter = Router();
 
-router.post("/users", authenticate, async (req: Request, res: Response): Promise<void> => {
-  const uid = (req as AuthenticatedRequest).uid;
-  const db = getFirestore();
+router.post(
+  "/users",
+  writeLimiter,
+  authenticate,
+  async (req: Request, res: Response): Promise<void> => {
+    const uid = (req as AuthenticatedRequest).uid;
+    const db = getFirestore();
 
-  const { username, displayName, bio = null, avatarUrl = null } = req.body as {
-    username?: string;
-    displayName?: string;
-    bio?: string | null;
-    avatarUrl?: string | null;
-  };
+    const parsed = CreateUserProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      const messages = parsed.error.errors
+        .map((e) => `${e.path.join(".")}: ${e.message}`)
+        .join("; ");
+      res.status(400).json({ error: messages });
+      return;
+    }
 
-  if (!username || !displayName) {
-    res.status(400).json({ error: "username and displayName are required" });
-    return;
+    const { username, displayName, bio, avatarUrl } = parsed.data;
+
+    const userRef = db.collection("users").doc(uid);
+    const existing = await userRef.get();
+    if (existing.exists) {
+      res.status(409).json({ error: "User profile already exists" });
+      return;
+    }
+
+    const usernameRef = db.collection("usernames").doc(username.toLowerCase());
+    const usernameDoc = await usernameRef.get();
+    if (usernameDoc.exists) {
+      res.status(409).json({ error: "Username already taken" });
+      return;
+    }
+
+    const now = Timestamp.now();
+    const userProfile = {
+      uid,
+      username: username.toLowerCase(),
+      displayName,
+      bio: bio ?? null,
+      avatarUrl: avatarUrl ?? null,
+      followersCount: 0,
+      followingCount: 0,
+      postsCount: 0,
+      createdAt: now,
+    };
+
+    const batch = db.batch();
+    batch.set(userRef, userProfile);
+    batch.set(usernameRef, { uid });
+    await batch.commit();
+
+    req.log.info({ uid, username }, "User profile created");
+
+    res.status(201).json({
+      ...userProfile,
+      createdAt: now.toDate().toISOString(),
+    });
   }
+);
 
-  const userRef = db.collection("users").doc(uid);
-  const existing = await userRef.get();
+router.get(
+  "/users/:userId",
+  authenticate,
+  async (req: Request, res: Response): Promise<void> => {
+    const params = UserIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid user ID" });
+      return;
+    }
 
-  if (existing.exists) {
-    res.status(409).json({ error: "User profile already exists" });
-    return;
-  }
+    const db = getFirestore();
+    const userDoc = await db.collection("users").doc(params.data.userId).get();
 
-  const usernameRef = db.collection("usernames").doc(username.toLowerCase());
-  const usernameDoc = await usernameRef.get();
+    if (!userDoc.exists) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
 
-  if (usernameDoc.exists) {
-    res.status(409).json({ error: "Username already taken" });
-    return;
-  }
-
-  const now = Timestamp.now();
-  const userProfile = {
-    uid,
-    username,
-    displayName,
-    bio,
-    avatarUrl,
-    followersCount: 0,
-    followingCount: 0,
-    postsCount: 0,
-    createdAt: now,
-  };
-
-  const batch = db.batch();
-  batch.set(userRef, userProfile);
-  batch.set(usernameRef, { uid });
-  await batch.commit();
-
-  req.log.info({ uid, username }, "User profile created");
-
-  res.status(201).json({
-    ...userProfile,
-    createdAt: now.toDate().toISOString(),
-  });
-});
-
-router.get("/users/:userId", authenticate, async (req: Request, res: Response): Promise<void> => {
-  const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
-  const db = getFirestore();
-
-  const userDoc = await db.collection("users").doc(userId).get();
-
-  if (!userDoc.exists) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-
-  const data = userDoc.data()!;
-  res.json({
-    ...data,
-    createdAt:
-      data.createdAt?.toDate
+    const data = userDoc.data()!;
+    res.json({
+      uid: data.uid,
+      username: data.username,
+      displayName: data.displayName,
+      bio: data.bio ?? null,
+      avatarUrl: data.avatarUrl ?? null,
+      followersCount: data.followersCount ?? 0,
+      followingCount: data.followingCount ?? 0,
+      postsCount: data.postsCount ?? 0,
+      createdAt: data.createdAt?.toDate
         ? data.createdAt.toDate().toISOString()
         : data.createdAt,
-  });
-});
+    });
+  }
+);
 
 router.get(
   "/users/:userId/followers",
   authenticate,
   async (req: Request, res: Response): Promise<void> => {
-    const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
-    const db = getFirestore();
+    const params = UserIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid user ID" });
+      return;
+    }
 
+    const db = getFirestore();
     const followersSnap = await db
       .collection("follows")
-      .where("followeeId", "==", userId)
+      .where("followeeId", "==", params.data.userId)
       .get();
 
     const followerUids = followersSnap.docs.map((d) => d.data().followerId as string);
@@ -127,12 +153,16 @@ router.get(
   "/users/:userId/following",
   authenticate,
   async (req: Request, res: Response): Promise<void> => {
-    const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
-    const db = getFirestore();
+    const params = UserIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid user ID" });
+      return;
+    }
 
+    const db = getFirestore();
     const followingSnap = await db
       .collection("follows")
-      .where("followerId", "==", userId)
+      .where("followerId", "==", params.data.userId)
       .get();
 
     const followeeUids = followingSnap.docs.map((d) => d.data().followeeId as string);
@@ -166,12 +196,22 @@ router.get(
   "/users/:userId/posts",
   authenticate,
   async (req: Request, res: Response): Promise<void> => {
-    const userId = Array.isArray(req.params.userId) ? req.params.userId[0] : req.params.userId;
-    const db = getFirestore();
-    const limit = Math.min(parseInt((req.query.limit as string) ?? "20", 10), 100);
-    const cursor = req.query.cursor as string | undefined;
+    const params = UserIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid user ID" });
+      return;
+    }
 
-    const userDoc = await db.collection("users").doc(userId).get();
+    const query = PaginationQuerySchema.safeParse(req.query);
+    if (!query.success) {
+      res.status(400).json({ error: "Invalid pagination parameters" });
+      return;
+    }
+
+    const { limit, cursor } = query.data;
+    const db = getFirestore();
+
+    const userDoc = await db.collection("users").doc(params.data.userId).get();
     if (!userDoc.exists) {
       res.status(404).json({ error: "User not found" });
       return;
@@ -179,7 +219,7 @@ router.get(
 
     const snap = await db
       .collection("posts")
-      .where("authorId", "==", userId)
+      .where("authorId", "==", params.data.userId)
       .get();
 
     const allDocs = snap.docs.sort((a, b) => {
@@ -214,9 +254,7 @@ router.get(
       };
     });
 
-    const nextCursor = hasMore ? pageDocs[pageDocs.length - 1].id : null;
-
-    res.json({ posts, nextCursor, hasMore });
+    res.json({ posts, nextCursor: hasMore ? pageDocs[pageDocs.length - 1].id : null, hasMore });
   }
 );
 

@@ -1,18 +1,26 @@
 import { Router, type IRouter } from "express";
 import type { Request, Response } from "express";
 import { authenticate, type AuthenticatedRequest } from "../../middlewares/authenticate";
+import { writeLimiter } from "../../middlewares/rateLimiter";
 import { getFirestore, FieldValue, Timestamp } from "../../lib/firebase";
+import { TargetUserIdParamSchema } from "../../lib/validation";
 
 const router: IRouter = Router();
 
 router.post(
   "/follows/:targetUserId",
+  writeLimiter,
   authenticate,
   async (req: Request, res: Response): Promise<void> => {
     const uid = (req as AuthenticatedRequest).uid;
-    const targetUserId = Array.isArray(req.params.targetUserId)
-      ? req.params.targetUserId[0]
-      : req.params.targetUserId;
+
+    const params = TargetUserIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid target user ID" });
+      return;
+    }
+
+    const { targetUserId } = params.data;
     const db = getFirestore();
 
     if (uid === targetUserId) {
@@ -44,11 +52,9 @@ router.post(
       followeeId: targetUserId,
       createdAt: now,
     });
-
     batch.update(db.collection("users").doc(uid), {
       followingCount: FieldValue.increment(1),
     });
-
     batch.update(db.collection("users").doc(targetUserId), {
       followersCount: FieldValue.increment(1),
     });
@@ -62,12 +68,18 @@ router.post(
 
 router.delete(
   "/follows/:targetUserId",
+  writeLimiter,
   authenticate,
   async (req: Request, res: Response): Promise<void> => {
     const uid = (req as AuthenticatedRequest).uid;
-    const targetUserId = Array.isArray(req.params.targetUserId)
-      ? req.params.targetUserId[0]
-      : req.params.targetUserId;
+
+    const params = TargetUserIdParamSchema.safeParse(req.params);
+    if (!params.success) {
+      res.status(400).json({ error: "Invalid target user ID" });
+      return;
+    }
+
+    const { targetUserId } = params.data;
     const db = getFirestore();
 
     const followId = `${uid}_${targetUserId}`;
@@ -82,11 +94,9 @@ router.delete(
     const batch = db.batch();
 
     batch.delete(followRef);
-
     batch.update(db.collection("users").doc(uid), {
       followingCount: FieldValue.increment(-1),
     });
-
     batch.update(db.collection("users").doc(targetUserId), {
       followersCount: FieldValue.increment(-1),
     });
