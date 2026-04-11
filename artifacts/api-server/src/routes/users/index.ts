@@ -177,23 +177,25 @@ router.get(
       return;
     }
 
-    let query = db
+    const snap = await db
       .collection("posts")
       .where("authorId", "==", userId)
-      .orderBy("createdAt", "desc")
-      .limit(limit + 1);
+      .get();
 
+    const allDocs = snap.docs.sort((a, b) => {
+      const aTime = a.data().createdAt?.toMillis?.() ?? 0;
+      const bTime = b.data().createdAt?.toMillis?.() ?? 0;
+      return bTime - aTime;
+    });
+
+    let startIdx = 0;
     if (cursor) {
-      const cursorDoc = await db.collection("posts").doc(cursor).get();
-      if (cursorDoc.exists) {
-        query = query.startAfter(cursorDoc);
-      }
+      const cursorIdx = allDocs.findIndex((d) => d.id === cursor);
+      if (cursorIdx !== -1) startIdx = cursorIdx + 1;
     }
 
-    const snap = await query.get();
-    const docs = snap.docs;
-    const hasMore = docs.length > limit;
-    const pageDocs = hasMore ? docs.slice(0, limit) : docs;
+    const pageDocs = allDocs.slice(startIdx, startIdx + limit);
+    const hasMore = startIdx + limit < allDocs.length;
 
     const posts = pageDocs.map((d) => {
       const data = d.data();
