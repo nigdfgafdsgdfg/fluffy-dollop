@@ -1,12 +1,16 @@
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -22,6 +26,7 @@ import strings from "@/constants/strings";
 import {
   getGetFeedQueryKey,
   getGetUserPostsQueryKey,
+  requestUploadUrl,
   useCreatePost,
 } from "@workspace/api-client-react";
 
@@ -38,10 +43,14 @@ export default function ComposeScreen() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const [content, setContent] = useState("");
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageMime, setImageMime] = useState<string>("image/jpeg");
+  const [imageSize, setImageSize] = useState<number>(1);
+  const [isUploading, setIsUploading] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const remaining = MAX_CHARS - content.length;
   const isOverLimit = remaining < 0;
-  const isEmpty = content.trim().length === 0;
+  const isEmpty = content.trim().length === 0 && !imageUri;
 
   const s = strings.compose;
 
@@ -70,16 +79,69 @@ export default function ComposeScreen() {
     },
   });
 
-  const handlePost = () => {
-    if (isEmpty || isOverLimit || createPost.isPending) return;
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      setImageUri(asset.uri);
+      setImageMime(asset.mimeType ?? "image/jpeg");
+      setImageSize(asset.fileSize ?? 1);
+    }
+  };
+
+  const removeImage = () => {
+    setImageUri(null);
+  };
+
+  const handlePost = async () => {
+    if (isEmpty || isOverLimit || createPost.isPending || isUploading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    createPost.mutate({ data: { content: content.trim() } });
+
+    let imageUrl: string | null = null;
+
+    if (imageUri) {
+      setIsUploading(true);
+      try {
+        const { uploadURL, objectPath } = await requestUploadUrl({
+          data: { name: "post-image", size: imageSize, contentType: imageMime },
+        });
+
+        const fetchResponse = await fetch(imageUri);
+        const blob = await fetchResponse.blob();
+
+        await fetch(uploadURL, {
+          method: "PUT",
+          body: blob,
+          headers: { "Content-Type": imageMime },
+        });
+
+        imageUrl = objectPath;
+      } catch {
+        setIsUploading(false);
+        return;
+      }
+      setIsUploading(false);
+    }
+
+    createPost.mutate({
+      data: { content: content.trim(), imageUrl },
+    });
   };
 
   const handleCancel = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
   };
+
+  const isBusy = isUploading || createPost.isPending;
 
   return (
     <KeyboardAvoidingView
@@ -98,13 +160,13 @@ export default function ComposeScreen() {
       >
         <Pressable
           onPress={handlePost}
-          disabled={isEmpty || isOverLimit || createPost.isPending}
+          disabled={isEmpty || isOverLimit || isBusy}
           style={[
             styles.postButton,
             {
               backgroundColor:
                 isEmpty || isOverLimit ? colors.muted : colors.foreground,
-              opacity: createPost.isPending ? 0.6 : 1,
+              opacity: isBusy ? 0.6 : 1,
             },
           ]}
         >
@@ -119,7 +181,7 @@ export default function ComposeScreen() {
               },
             ]}
           >
-            {createPost.isPending ? s.publishing : s.publish}
+            {isUploading ? s.uploadingImage : createPost.isPending ? s.publishing : s.publish}
           </Text>
         </Pressable>
 
@@ -134,32 +196,54 @@ export default function ComposeScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.body}>
-        <View style={styles.inputWrap}>
-          <Text style={[styles.authorName, { color: colors.mutedForeground }]}>
-            {profile?.displayName ?? ""}
-          </Text>
-          <TextInput
-            ref={inputRef}
-            style={[styles.input, { color: colors.foreground }]}
-            placeholder={s.placeholder}
-            placeholderTextColor={colors.mutedForeground}
-            multiline
-            autoFocus
-            value={content}
-            onChangeText={setContent}
-            maxLength={MAX_CHARS + 50}
-            textAlignVertical="top"
-            textAlign="right"
-            writingDirection="rtl"
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.body}>
+          <View style={styles.inputWrap}>
+            <Text style={[styles.authorName, { color: colors.mutedForeground }]}>
+              {profile?.displayName ?? ""}
+            </Text>
+            <TextInput
+              ref={inputRef}
+              style={[styles.input, { color: colors.foreground }]}
+              placeholder={s.placeholder}
+              placeholderTextColor={colors.mutedForeground}
+              multiline
+              autoFocus
+              value={content}
+              onChangeText={setContent}
+              maxLength={MAX_CHARS + 50}
+              textAlignVertical="top"
+              textAlign="right"
+              writingDirection="rtl"
+            />
+            {imageUri && (
+              <View style={styles.imagePreviewWrap}>
+                <Image
+                  source={{ uri: imageUri }}
+                  style={[styles.imagePreview, { borderColor: colors.border }]}
+                  contentFit="cover"
+                />
+                <Pressable
+                  onPress={removeImage}
+                  style={[styles.removeImageBtn, { backgroundColor: colors.foreground }]}
+                  hitSlop={6}
+                >
+                  <Feather name="x" size={12} color={colors.background} />
+                </Pressable>
+              </View>
+            )}
+          </View>
+          <Avatar
+            uri={profile?.avatarUrl}
+            displayName={profile?.displayName ?? "Me"}
+            size={42}
           />
         </View>
-        <Avatar
-          uri={profile?.avatarUrl}
-          displayName={profile?.displayName ?? "Me"}
-          size={42}
-        />
-      </View>
+      </ScrollView>
 
       <View
         style={[
@@ -170,13 +254,28 @@ export default function ComposeScreen() {
           },
         ]}
       >
-        {createPost.isError ? (
-          <Text style={[styles.errorText, { color: colors.destructive }]}>
-            {s.errorPost}
-          </Text>
-        ) : (
-          <View style={styles.footerLeft} />
-        )}
+        <View style={styles.footerLeft}>
+          {createPost.isError ? (
+            <Text style={[styles.errorText, { color: colors.destructive }]}>
+              {s.errorPost}
+            </Text>
+          ) : isUploading ? (
+            <ActivityIndicator size="small" color={colors.mutedForeground} />
+          ) : (
+            <Pressable
+              onPress={pickImage}
+              hitSlop={8}
+              style={styles.imagePickerBtn}
+              disabled={isBusy}
+            >
+              <Feather
+                name="image"
+                size={20}
+                color={imageUri ? colors.foreground : colors.mutedForeground}
+              />
+            </Pressable>
+          )}
+        </View>
 
         <View style={styles.ringWrap}>
           {remaining < 50 && (
@@ -223,6 +322,7 @@ export default function ComposeScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -276,12 +376,34 @@ const styles = StyleSheet.create({
     writingDirection: "rtl",
   },
   input: {
-    flex: 1,
+    flex: 0,
     width: "100%",
+    minHeight: 80,
     fontFamily: "Inter_400Regular",
     fontSize: 18,
     lineHeight: 29,
     paddingTop: 0,
+  },
+  imagePreviewWrap: {
+    width: "100%",
+    position: "relative",
+    marginTop: 8,
+  },
+  imagePreview: {
+    width: "100%",
+    height: 220,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  removeImageBtn: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
   footer: {
     flexDirection: "row",
@@ -294,6 +416,10 @@ const styles = StyleSheet.create({
   },
   footerLeft: {
     flex: 1,
+    alignItems: "flex-start",
+  },
+  imagePickerBtn: {
+    padding: 4,
   },
   ringWrap: {
     flexDirection: "row",

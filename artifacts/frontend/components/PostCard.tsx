@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
@@ -14,6 +15,7 @@ import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import strings from "@/constants/strings";
+import { resolveImageUrl } from "@/utils/imageUrl";
 import type { Post } from "@workspace/api-client-react";
 import { useDeletePost } from "@workspace/api-client-react";
 
@@ -134,9 +136,19 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
             </Pressable>
           </View>
 
-          <Text style={[styles.body, { color: colors.foreground }]}>
-            {post.content}
-          </Text>
+          {post.content.trim().length > 0 && (
+            <Text style={[styles.body, { color: colors.foreground }]}>
+              {post.content}
+            </Text>
+          )}
+
+          {resolveImageUrl(post.imageUrl) && (
+            <Image
+              source={{ uri: resolveImageUrl(post.imageUrl)! }}
+              style={[styles.postImage, { borderColor: colors.border }]}
+              contentFit="cover"
+            />
+          )}
 
           <View style={styles.footer}>
             {isOwn && (
@@ -207,6 +219,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: 2,
+  },
+  postImage: {
+    width: "100%",
+    height: 220,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
   },
   deleteBtn: { padding: 4, opacity: 0.5 },
   actions: { flexDirection: "row", gap: 18, alignItems: "center" },

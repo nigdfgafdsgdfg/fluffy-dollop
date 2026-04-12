@@ -7,8 +7,10 @@ import { PostIdParamSchema, PaginationQuerySchema, UserIdParamSchema } from "../
 import { z } from "zod";
 
 const CreatePostSchema = z.object({
-  content: z.string().trim().min(1, "Post content cannot be empty").max(280, "Post content must be 280 characters or fewer"),
+  content: z.string().trim().max(280, "Post content must be 280 characters or fewer").default(""),
   imageUrl: z.string().max(600).nullable().optional().default(null),
+}).refine((data) => data.content.length > 0 || data.imageUrl != null, {
+  message: "Post must have text or an image",
 });
 
 const router: IRouter = Router();
