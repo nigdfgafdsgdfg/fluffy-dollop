@@ -298,6 +298,82 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /posts/{postId}/like:
+    post:
+      operationId: likePost
+      tags: [posts]
+      summary: Like a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Post liked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResult"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already liked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: unlikePost
+      tags: [posts]
+      summary: Unlike a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Post unliked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LikeResult"
+        "400":
+          description: Not liked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /posts/{postId}/comments:
     get:
       operationId: getPostComments
@@ -620,6 +696,8 @@ components:
           type: integer
         commentsCount:
           type: integer
+        likedByMe:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -633,6 +711,7 @@ components:
         - imageUrl
         - likesCount
         - commentsCount
+        - likedByMe
         - createdAt
 
     CreatePostBody:
@@ -739,6 +818,17 @@ components:
         objectPath:
           type: string
       required: [uploadURL, objectPath]
+
+    LikeResult:
+      type: object
+      properties:
+        liked:
+          type: boolean
+        postId:
+          type: string
+        likesCount:
+          type: integer
+      required: [liked, postId, likesCount]
 
     FollowResult:
       type: object
