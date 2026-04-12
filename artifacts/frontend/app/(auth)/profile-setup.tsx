@@ -1,4 +1,3 @@
-import { Feather } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
@@ -15,6 +14,7 @@ import { AppTextInput } from "@/components/AppTextInput";
 import { Button } from "@/components/Button";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import strings from "@/constants/strings";
 import { useCreateUserProfile } from "@workspace/api-client-react";
 
 export default function ProfileSetupScreen() {
@@ -31,6 +31,8 @@ export default function ProfileSetupScreen() {
   const displayNameRef = useRef<TextInput>(null);
   const bioRef = useRef<TextInput>(null);
 
+  const s = strings.profileSetup;
+
   const createProfile = useCreateUserProfile({
     mutation: {
       onSuccess: (data) => {
@@ -39,7 +41,7 @@ export default function ProfileSetupScreen() {
       onError: (err: unknown) => {
         const e = err as { status?: number; data?: { error?: string } };
         if (e.status === 409) {
-          setUsernameError("This username is already taken.");
+          setUsernameError(s.errorUsernameTaken);
         } else if (e.data?.error) {
           setUsernameError(e.data.error);
         }
@@ -53,18 +55,18 @@ export default function ProfileSetupScreen() {
     setDisplayNameError("");
 
     if (!username.trim()) {
-      setUsernameError("Username is required.");
+      setUsernameError(s.errorUsernameRequired);
       valid = false;
     } else if (!/^[a-zA-Z0-9_]{1,30}$/.test(username.trim())) {
-      setUsernameError("Only letters, numbers, and underscores. Max 30 chars.");
+      setUsernameError(s.errorUsernameFormat);
       valid = false;
     }
 
     if (!displayName.trim()) {
-      setDisplayNameError("Display name is required.");
+      setDisplayNameError(s.errorDisplayNameRequired);
       valid = false;
     } else if (displayName.trim().length > 50) {
-      setDisplayNameError("Display name must be 50 characters or less.");
+      setDisplayNameError(s.errorDisplayNameLength);
       valid = false;
     }
 
@@ -92,50 +94,51 @@ export default function ProfileSetupScreen() {
         contentContainerStyle={[
           styles.scroll,
           {
-            paddingTop: insets.top + 40,
-            paddingBottom: insets.bottom + 32,
+            paddingTop: insets.top + 60,
+            paddingBottom: insets.bottom + 40,
           },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Feather name="user-check" size={36} color={colors.primary} />
           <Text style={[styles.title, { color: colors.foreground }]}>
-            Set up your profile
+            {s.title}
           </Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            Tell the world who you are
+            {s.subtitle}
           </Text>
         </View>
 
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+
         <View style={styles.form}>
           <AppTextInput
-            label="Username"
+            label={s.username}
             value={username}
             onChangeText={(t) => {
               setUsername(t.toLowerCase().replace(/[^a-zA-Z0-9_]/g, ""));
               setUsernameError("");
             }}
-            placeholder="yourhandle"
+            placeholder={s.usernamePlaceholder}
             autoCapitalize="none"
             autoCorrect={false}
             maxLength={30}
             returnKeyType="next"
             onSubmitEditing={() => displayNameRef.current?.focus()}
             error={usernameError}
-            hint="Letters, numbers, and underscores only"
+            hint={s.usernameHint}
           />
 
           <AppTextInput
             ref={displayNameRef}
-            label="Display name"
+            label={s.displayName}
             value={displayName}
             onChangeText={(t) => {
               setDisplayName(t);
               setDisplayNameError("");
             }}
-            placeholder="Your Name"
+            placeholder={s.displayNamePlaceholder}
             maxLength={50}
             returnKeyType="next"
             onSubmitEditing={() => bioRef.current?.focus()}
@@ -144,10 +147,10 @@ export default function ProfileSetupScreen() {
 
           <AppTextInput
             ref={bioRef}
-            label="Bio (optional)"
+            label={s.bio}
             value={bio}
             onChangeText={setBio}
-            placeholder="Tell people about yourself"
+            placeholder={s.bioPlaceholder}
             multiline
             numberOfLines={3}
             maxLength={160}
@@ -158,12 +161,12 @@ export default function ProfileSetupScreen() {
           {createProfile.error ? (
             <Text style={[styles.error, { color: colors.destructive }]}>
               {(createProfile.error as { data?: { error?: string } })?.data?.error ??
-                "Failed to create profile. Please try again."}
+                s.errorGeneric}
             </Text>
           ) : null}
 
           <Button
-            label="Create profile"
+            label={s.createProfile}
             onPress={handleSubmit}
             isLoading={createProfile.isPending}
             fullWidth
@@ -178,25 +181,30 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
-    paddingHorizontal: 28,
-    gap: 32,
+    paddingHorizontal: 32,
+    gap: 28,
   },
   header: {
-    alignItems: "center",
-    gap: 10,
+    alignItems: "flex-end",
+    gap: 8,
   },
   title: {
     fontFamily: "Inter_700Bold",
     fontSize: 26,
-    textAlign: "center",
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   subtitle: {
     fontFamily: "Inter_400Regular",
     fontSize: 15,
-    textAlign: "center",
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
+  dividerLine: {
+    height: StyleSheet.hairlineWidth,
   },
   form: {
-    gap: 16,
+    gap: 14,
   },
   bioInput: {
     height: 88,
@@ -206,6 +214,7 @@ const styles = StyleSheet.create({
   error: {
     fontFamily: "Inter_400Regular",
     fontSize: 14,
-    textAlign: "center",
+    textAlign: "right",
+    writingDirection: "rtl",
   },
 });

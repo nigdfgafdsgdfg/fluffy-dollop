@@ -1,63 +1,63 @@
 const colors = {
   light: {
-    text: "#0F1419",
-    tint: "#1D9BF0",
+    text: "#1A1917",
+    tint: "#C47A3A",
 
-    background: "#FFFFFF",
-    foreground: "#0F1419",
+    background: "#FAF9F6",
+    foreground: "#1A1917",
 
-    card: "#F7F9F9",
-    cardForeground: "#0F1419",
+    card: "#F3F1EC",
+    cardForeground: "#1A1917",
 
-    primary: "#1D9BF0",
-    primaryForeground: "#FFFFFF",
+    primary: "#1A1917",
+    primaryForeground: "#FAF9F6",
 
-    secondary: "#EFF3F4",
-    secondaryForeground: "#0F1419",
+    secondary: "#EDE9E1",
+    secondaryForeground: "#1A1917",
 
-    muted: "#EFF3F4",
-    mutedForeground: "#536471",
+    muted: "#EDE9E1",
+    mutedForeground: "#8A8478",
 
-    accent: "#E7F3FD",
-    accentForeground: "#1D9BF0",
+    accent: "#C47A3A",
+    accentForeground: "#FFFFFF",
 
-    destructive: "#F4212E",
+    destructive: "#B94040",
     destructiveForeground: "#FFFFFF",
 
-    border: "#EFF3F4",
-    input: "#CFD9DE",
+    border: "#E3DFD7",
+    input: "#D4CFC5",
   },
 
   dark: {
-    text: "#E7E9EA",
-    tint: "#1D9BF0",
+    text: "#F0EDE7",
+    tint: "#D4893E",
 
-    background: "#000000",
-    foreground: "#E7E9EA",
+    background: "#14120E",
+    foreground: "#F0EDE7",
 
-    card: "#16181C",
-    cardForeground: "#E7E9EA",
+    card: "#1F1C16",
+    cardForeground: "#F0EDE7",
 
-    primary: "#1D9BF0",
-    primaryForeground: "#FFFFFF",
+    primary: "#F0EDE7",
+    primaryForeground: "#14120E",
 
-    secondary: "#2F3336",
-    secondaryForeground: "#E7E9EA",
+    secondary: "#2A2720",
+    secondaryForeground: "#F0EDE7",
 
-    muted: "#16181C",
-    mutedForeground: "#71767B",
+    muted: "#1F1C16",
+    mutedForeground: "#7A7468",
 
-    accent: "#031018",
-    accentForeground: "#1D9BF0",
+    accent: "#D4893E",
+    accentForeground: "#14120E",
 
-    destructive: "#F4212E",
-    destructiveForeground: "#FFFFFF",
+    destructive: "#C0392B",
+    destructiveForeground: "#F0EDE7",
 
-    border: "#2F3336",
-    input: "#3E4144",
+    border: "#2E2B24",
+    input: "#3A3730",
   },
 
-  radius: 16,
+  radius: 6,
 };
 
 export default colors;

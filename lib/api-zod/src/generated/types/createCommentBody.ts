@@ -6,8 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreatePostBody {
+export interface CreateCommentBody {
   content: string;
   /** @nullable */
   imageUrl?: string | null;
+  /** @nullable */
+  parentCommentId?: string | null;
 }

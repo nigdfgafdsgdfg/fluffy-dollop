@@ -11,17 +11,18 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AppTextInput } from "@/components/AppTextInput";
 import { Button } from "@/components/Button";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import strings from "@/constants/strings";
 
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const { signIn, signInWithGoogle } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -34,41 +35,25 @@ export default function LoginScreen() {
   const passwordRef = useRef<TextInput>(null);
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) {
-      setError("Please fill in all fields.");
-      return;
-    }
-    setError("");
-    setIsLoading(true);
+    if (!email.trim() || !password) { setError(strings.login.errorFillAll); return; }
+    setError(""); setIsLoading(true);
     try {
       await signIn(email.trim(), password);
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string };
-      if (
-        e.code === "auth/user-not-found" ||
-        e.code === "auth/wrong-password" ||
-        e.code === "auth/invalid-credential"
-      ) {
-        setError("Invalid email or password.");
+      if (e.code === "auth/user-not-found" || e.code === "auth/wrong-password" || e.code === "auth/invalid-credential") {
+        setError(strings.login.errorInvalidCredential);
       } else {
-        setError(e.message ?? "Something went wrong. Please try again.");
+        setError(e.message ?? strings.login.errorGeneric);
       }
-    } finally {
-      setIsLoading(false);
-    }
+    } finally { setIsLoading(false); }
   };
 
   const handleGoogle = async () => {
-    setIsGoogleLoading(true);
-    setError("");
-    try {
-      await signInWithGoogle();
-    } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e.message ?? "Google sign-in failed.");
-    } finally {
-      setIsGoogleLoading(false);
-    }
+    setIsGoogleLoading(true); setError("");
+    try { await signInWithGoogle(); }
+    catch (err: unknown) { setError((err as { message?: string }).message ?? strings.login.errorGoogleFailed); }
+    finally { setIsGoogleLoading(false); }
   };
 
   return (
@@ -77,119 +62,91 @@ export default function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView
-        contentContainerStyle={[
-          styles.scroll,
-          {
-            paddingTop: insets.top + 40,
-            paddingBottom: insets.bottom + 32,
-          },
-        ]}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 40 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Feather name="twitter" size={36} color={colors.primary} />
-          <Text style={[styles.title, { color: colors.foreground }]}>
-            Sign in to X
+        <Animated.View entering={FadeInDown.delay(0).duration(600).springify().damping(18)} style={styles.header}>
+          <Text style={[styles.wordmark, { color: colors.foreground }]}>
+            {strings.appName}
           </Text>
-        </View>
+          <Text style={[styles.tagline, { color: colors.mutedForeground }]}>
+            {strings.appTaglineLogin}
+          </Text>
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInDown.delay(80).duration(500).springify().damping(20)}
+          style={[styles.dividerLine, { backgroundColor: colors.border }]}
+        />
 
         <View style={styles.form}>
           {error ? (
-            <View
-              style={[
-                styles.errorBox,
-                {
-                  backgroundColor: colors.accent,
-                  borderColor: colors.destructive,
-                },
-              ]}
+            <Animated.View
+              entering={FadeInDown.duration(300).springify()}
+              style={[styles.errorBox, { backgroundColor: colors.card, borderColor: colors.destructive }]}
             >
-              <Text style={[styles.errorText, { color: colors.destructive }]}>
-                {error}
-              </Text>
-            </View>
+              <Text style={[styles.errorText, { color: colors.destructive }]}>{error}</Text>
+            </Animated.View>
           ) : null}
 
-          <AppTextInput
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="you@example.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-          />
-
-          <View>
+          <Animated.View entering={FadeInDown.delay(160).duration(500).springify().damping(20)}>
             <AppTextInput
-              ref={passwordRef}
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              secureTextEntry={!showPassword}
+              label={strings.login.email}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="you@example.com"
+              keyboardType="email-address"
               autoCapitalize="none"
-              returnKeyType="done"
-              onSubmitEditing={handleLogin}
+              autoComplete="email"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
-            <Pressable
-              style={styles.eyeButton}
-              onPress={() => setShowPassword((v) => !v)}
-              hitSlop={8}
-            >
-              <Feather
-                name={showPassword ? "eye-off" : "eye"}
-                size={18}
-                color={colors.mutedForeground}
-              />
-            </Pressable>
-          </View>
+          </Animated.View>
 
-          <Button
-            label="Sign in"
-            onPress={handleLogin}
-            isLoading={isLoading}
-            disabled={isGoogleLoading}
-            fullWidth
-          />
+          <Animated.View entering={FadeInDown.delay(240).duration(500).springify().damping(20)}>
+            <View>
+              <AppTextInput
+                ref={passwordRef}
+                label={strings.login.password}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
+              <Pressable style={styles.eyeButton} onPress={() => setShowPassword(v => !v)} hitSlop={8}>
+                <Feather name={showPassword ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
+              </Pressable>
+            </View>
+          </Animated.View>
+
+          <Animated.View entering={FadeInDown.delay(320).duration(500).springify().damping(20)}>
+            <Button label={strings.login.continue} onPress={handleLogin} isLoading={isLoading} disabled={isGoogleLoading} fullWidth />
+          </Animated.View>
 
           {Platform.OS === "web" && (
-            <>
+            <Animated.View entering={FadeInDown.delay(400).duration(500).springify().damping(20)} style={styles.googleWrap}>
               <View style={styles.divider}>
                 <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-                <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>
-                  or
-                </Text>
+                <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>{strings.login.or}</Text>
                 <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
               </View>
-
-              <Button
-                label="Continue with Google"
-                onPress={handleGoogle}
-                variant="outline"
-                isLoading={isGoogleLoading}
-                disabled={isLoading}
-                fullWidth
-              />
-            </>
+              <Button label={strings.login.continueGoogle} onPress={handleGoogle} variant="outline" isLoading={isGoogleLoading} disabled={isLoading} fullWidth />
+            </Animated.View>
           )}
         </View>
 
-        <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-            Don't have an account?{" "}
-          </Text>
+        <Animated.View entering={FadeInUp.delay(480).duration(500).springify().damping(20)} style={styles.footer}>
+          <Text style={[styles.footerText, { color: colors.mutedForeground }]}>{strings.login.newHere} </Text>
           <Link href="/(auth)/signup" asChild>
             <Pressable>
-              <Text style={[styles.footerLink, { color: colors.primary }]}>
-                Sign up
-              </Text>
+              <Text style={[styles.footerLink, { color: colors.foreground }]}>{strings.login.createAccount}</Text>
             </Pressable>
           </Link>
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -197,60 +154,28 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  scroll: {
-    flexGrow: 1,
-    paddingHorizontal: 28,
-    gap: 32,
+  scroll: { flexGrow: 1, paddingHorizontal: 32, gap: 28 },
+  header: { alignItems: "flex-end", gap: 6 },
+  wordmark: {
+    fontFamily: "Amiri_700Bold_Italic",
+    fontSize: 48,
+    letterSpacing: 0,
   },
-  header: {
-    alignItems: "center",
-    gap: 16,
+  tagline: {
+    fontFamily: "Amiri_400Regular",
+    fontSize: 16,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
-  title: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 28,
-  },
-  form: {
-    gap: 16,
-  },
-  errorBox: {
-    padding: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  errorText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-  },
-  eyeButton: {
-    position: "absolute",
-    right: 14,
-    bottom: 14,
-  },
-  divider: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  dividerLine: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-  },
-  dividerText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 14,
-  },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  footerText: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 15,
-  },
-  footerLink: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-  },
+  form: { gap: 14 },
+  errorBox: { padding: 12, borderRadius: 6, borderWidth: 1 },
+  errorText: { fontFamily: "Inter_400Regular", fontSize: 13, textAlign: "right", writingDirection: "rtl" },
+  eyeButton: { position: "absolute", left: 14, bottom: 14 },
+  googleWrap: { gap: 14 },
+  divider: { flexDirection: "row", alignItems: "center", gap: 12 },
+  dividerLine: { flex: 1, height: StyleSheet.hairlineWidth },
+  dividerText: { fontFamily: "Inter_400Regular", fontSize: 13 },
+  footer: { flexDirection: "row", justifyContent: "flex-end", alignItems: "center" },
+  footerText: { fontFamily: "Amiri_400Regular", fontSize: 16, textAlign: "right", writingDirection: "rtl" },
+  footerLink: { fontFamily: "Amiri_700Bold", fontSize: 16, textDecorationLine: "underline" },
 });

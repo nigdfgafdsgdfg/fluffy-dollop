@@ -8,7 +8,6 @@
 import * as zod from "zod";
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const HealthCheckResponse = zod.object({
@@ -82,6 +81,7 @@ export const GetUserPostsResponse = zod.object({
       authorDisplayName: zod.string(),
       authorAvatarUrl: zod.string().nullable(),
       content: zod.string(),
+      imageUrl: zod.string().nullable(),
       likesCount: zod.number(),
       commentsCount: zod.number(),
       createdAt: zod.coerce.date(),
@@ -128,10 +128,11 @@ export const GetUserFollowingResponse = zod.object({
 });
 
 /**
- * @summary Create a new text post
+ * @summary Create a new post
  */
 export const CreatePostBody = zod.object({
   content: zod.string(),
+  imageUrl: zod.string().nullish(),
 });
 
 /**
@@ -148,6 +149,7 @@ export const GetPostResponse = zod.object({
   authorDisplayName: zod.string(),
   authorAvatarUrl: zod.string().nullable(),
   content: zod.string(),
+  imageUrl: zod.string().nullable(),
   likesCount: zod.number(),
   commentsCount: zod.number(),
   createdAt: zod.coerce.date(),
@@ -158,6 +160,75 @@ export const GetPostResponse = zod.object({
  */
 export const DeletePostParams = zod.object({
   postId: zod.coerce.string(),
+});
+
+/**
+ * @summary Get comments for a post
+ */
+export const GetPostCommentsParams = zod.object({
+  postId: zod.coerce.string(),
+});
+
+export const getPostCommentsQueryLimitDefault = 50;
+
+export const GetPostCommentsQueryParams = zod.object({
+  limit: zod.coerce.number().default(getPostCommentsQueryLimitDefault),
+  cursor: zod.coerce.string().nullish(),
+});
+
+export const GetPostCommentsResponse = zod.object({
+  comments: zod.array(
+    zod.object({
+      id: zod.string(),
+      postId: zod.string(),
+      parentCommentId: zod.string().nullable(),
+      authorId: zod.string(),
+      authorUsername: zod.string(),
+      authorDisplayName: zod.string(),
+      authorAvatarUrl: zod.string().nullable(),
+      content: zod.string(),
+      imageUrl: zod.string().nullable(),
+      repliesCount: zod.number(),
+      createdAt: zod.coerce.date(),
+    }),
+  ),
+  nextCursor: zod.string().nullable(),
+  hasMore: zod.boolean(),
+});
+
+/**
+ * @summary Create a comment or reply on a post
+ */
+export const CreateCommentParams = zod.object({
+  postId: zod.coerce.string(),
+});
+
+export const CreateCommentBody = zod.object({
+  content: zod.string(),
+  imageUrl: zod.string().nullish(),
+  parentCommentId: zod.string().nullish(),
+});
+
+/**
+ * @summary Delete a comment
+ */
+export const DeleteCommentParams = zod.object({
+  postId: zod.coerce.string(),
+  commentId: zod.coerce.string(),
+});
+
+/**
+ * @summary Request a presigned URL for image upload
+ */
+export const RequestUploadUrlBody = zod.object({
+  name: zod.string(),
+  size: zod.number(),
+  contentType: zod.string(),
+});
+
+export const RequestUploadUrlResponse = zod.object({
+  uploadURL: zod.string(),
+  objectPath: zod.string(),
 });
 
 /**
@@ -185,7 +256,7 @@ export const UnfollowUserResponse = zod.object({
 });
 
 /**
- * @summary Get personalized feed based on who the user follows
+ * @summary Get personalized feed
  */
 export const getFeedQueryLimitDefault = 20;
 
@@ -203,6 +274,7 @@ export const GetFeedResponse = zod.object({
       authorDisplayName: zod.string(),
       authorAvatarUrl: zod.string().nullable(),
       content: zod.string(),
+      imageUrl: zod.string().nullable(),
       likesCount: zod.number(),
       commentsCount: zod.number(),
       createdAt: zod.coerce.date(),

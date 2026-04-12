@@ -1,12 +1,11 @@
 import * as Haptics from "expo-haptics";
 import React from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  ViewStyle,
-} from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, ViewStyle } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
 
 import { useColors } from "@/hooks/useColors";
 
@@ -32,7 +31,15 @@ export function Button({
   fullWidth = false,
 }: ButtonProps) {
   const colors = useColors();
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
+  const handlePressIn = () => {
+    scale.value = withSpring(0.96, { damping: 18, stiffness: 400 });
+  };
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 10, stiffness: 200 });
+  };
   const handlePress = () => {
     if (disabled || isLoading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -49,72 +56,58 @@ export function Button({
       case "ghost": return "transparent";
     }
   };
-
   const getTextColor = () => {
     if (disabled) return colors.mutedForeground;
     switch (variant) {
       case "primary": return colors.primaryForeground;
       case "secondary": return colors.secondaryForeground;
-      case "outline": return colors.primary;
+      case "outline": return colors.foreground;
       case "destructive": return colors.destructiveForeground;
       case "ghost": return colors.foreground;
     }
   };
 
-  const getBorderColor = () => {
-    switch (variant) {
-      case "outline": return colors.primary;
-      default: return "transparent";
-    }
-  };
-
   return (
-    <Pressable
-      onPress={handlePress}
-      disabled={disabled || isLoading}
-      style={({ pressed }) => [
-        styles.button,
-        {
-          backgroundColor: getBgColor(),
-          borderColor: getBorderColor(),
-          borderWidth: variant === "outline" ? 1.5 : 0,
-          opacity: pressed ? 0.85 : 1,
-          borderRadius: colors.radius,
-          alignSelf: fullWidth ? "stretch" : "auto",
-        },
-        style,
-      ]}
-    >
-      {isLoading ? (
-        <ActivityIndicator
-          size="small"
-          color={variant === "primary" ? colors.primaryForeground : colors.primary}
-        />
-      ) : (
-        <Text
-          style={[
-            styles.label,
-            { color: getTextColor() },
-          ]}
-        >
-          {label}
-        </Text>
-      )}
-    </Pressable>
+    <Animated.View style={[animStyle, fullWidth && styles.fullWidth]}>
+      <Pressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled || isLoading}
+        style={[
+          styles.button,
+          {
+            backgroundColor: getBgColor(),
+            borderColor: variant === "outline" ? colors.border : "transparent",
+            borderWidth: variant === "outline" ? 1 : 0,
+            borderRadius: colors.radius,
+          },
+          style,
+        ]}
+      >
+        {isLoading ? (
+          <ActivityIndicator size="small" color={variant === "primary" ? colors.primaryForeground : colors.foreground} />
+        ) : (
+          <Text style={[styles.label, { color: getTextColor() }]}>{label}</Text>
+        )}
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
+  fullWidth: { alignSelf: "stretch" },
   button: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 44,
+    minHeight: 50,
   },
   label: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
-    letterSpacing: 0.2,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    letterSpacing: 0.3,
+    writingDirection: "rtl",
   },
 });

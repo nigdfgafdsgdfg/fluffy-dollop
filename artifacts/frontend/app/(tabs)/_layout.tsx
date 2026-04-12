@@ -1,41 +1,81 @@
 import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, View, useColorScheme } from "react-native";
+import { Platform, StyleSheet, Text, View, useColorScheme } from "react-native";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from "react-native-reanimated";
 
 import { useColors } from "@/hooks/useColors";
 
-function NativeTabLayout() {
+function TabIcon({
+  name,
+  label,
+  focused,
+}: {
+  name: keyof typeof Feather.glyphMap;
+  label: string;
+  focused: boolean;
+}) {
+  const colors = useColors();
+  const scale = useSharedValue(1);
+  const dotScale = useSharedValue(focused ? 1 : 0);
+
+  React.useEffect(() => {
+    scale.value = withSpring(focused ? 1.12 : 1, { damping: 10, stiffness: 260 });
+    dotScale.value = withSpring(focused ? 1 : 0, { damping: 12, stiffness: 300 });
+  }, [focused]);
+
+  const iconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+  const dotStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: dotScale.value }],
+    opacity: dotScale.value,
+  }));
+
   return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Home</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
-        <Icon sf={{ default: "person", selected: "person.fill" }} />
-        <Label>Profile</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <View style={styles.tabItem}>
+      <Animated.View style={iconStyle}>
+        <Feather
+          name={name}
+          size={20}
+          color={focused ? colors.foreground : colors.mutedForeground}
+        />
+      </Animated.View>
+      <Text
+        style={[
+          styles.tabLabel,
+          {
+            color: focused ? colors.foreground : colors.mutedForeground,
+            fontFamily: focused ? "Amiri_700Bold" : "Amiri_400Regular",
+          },
+        ]}
+      >
+        {label}
+      </Text>
+      <Animated.View
+        style={[styles.dot, { backgroundColor: colors.accent }, dotStyle]}
+      />
+    </View>
   );
 }
 
-function ClassicTabLayout() {
+export default function TabLayout() {
   const colors = useColors();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const isIOS = Platform.OS === "ios";
-  const isWeb = Platform.OS === "web";
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: colors.foreground,
         tabBarInactiveTintColor: colors.mutedForeground,
+        tabBarShowLabel: false,
         headerShown: false,
         tabBarStyle: {
           position: "absolute",
@@ -43,56 +83,56 @@ function ClassicTabLayout() {
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.border,
           elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          height: Platform.OS === "web" ? 64 : undefined,
         },
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={100}
-              tint={isDark ? "dark" : "light"}
+              intensity={85}
+              tint={isDark ? "dark" : "extraLight"}
               style={StyleSheet.absoluteFill}
             />
-          ) : isWeb ? (
-            <View
-              style={[
-                StyleSheet.absoluteFill,
-                { backgroundColor: colors.background },
-              ]}
-            />
-          ) : null,
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
+          ),
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="house" tintColor={color} size={24} />
-            ) : (
-              <Feather name="home" size={22} color={color} />
-            ),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="home" label="الرئيسية" focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: "Profile",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person" tintColor={color} size={24} />
-            ) : (
-              <Feather name="user" size={22} color={color} />
-            ),
+          tabBarIcon: ({ focused }) => (
+            <TabIcon name="user" label="ملفي" focused={focused} />
+          ),
         }}
       />
     </Tabs>
   );
 }
 
-export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
-}
+const styles = StyleSheet.create({
+  tabItem: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    paddingTop: 6,
+  },
+  tabLabel: {
+    fontSize: 11,
+    letterSpacing: 0.2,
+    writingDirection: "rtl",
+  },
+  dot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginTop: 1,
+  },
+});

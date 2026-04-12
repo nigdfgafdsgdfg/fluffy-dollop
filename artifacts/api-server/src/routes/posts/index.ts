@@ -3,7 +3,13 @@ import type { Request, Response } from "express";
 import { authenticate, type AuthenticatedRequest } from "../../middlewares/authenticate";
 import { writeLimiter } from "../../middlewares/rateLimiter";
 import { getFirestore, FieldValue, Timestamp } from "../../lib/firebase";
-import { CreatePostSchema, PostIdParamSchema } from "../../lib/validation";
+import { PostIdParamSchema, PaginationQuerySchema, UserIdParamSchema } from "../../lib/validation";
+import { z } from "zod";
+
+const CreatePostSchema = z.object({
+  content: z.string().trim().min(1, "Post content cannot be empty").max(280, "Post content must be 280 characters or fewer"),
+  imageUrl: z.string().max(600).nullable().optional().default(null),
+});
 
 const router: IRouter = Router();
 
@@ -24,7 +30,7 @@ router.post(
       return;
     }
 
-    const { content } = parsed.data;
+    const { content, imageUrl } = parsed.data;
 
     const userDoc = await db.collection("users").doc(uid).get();
     if (!userDoc.exists) {
@@ -43,6 +49,7 @@ router.post(
       authorDisplayName: userData.displayName as string,
       authorAvatarUrl: (userData.avatarUrl as string | null) ?? null,
       content,
+      imageUrl: imageUrl ?? null,
       likesCount: 0,
       commentsCount: 0,
       createdAt: now,
@@ -90,6 +97,7 @@ router.get(
       authorDisplayName: data.authorDisplayName as string,
       authorAvatarUrl: (data.authorAvatarUrl as string | null) ?? null,
       content: data.content as string,
+      imageUrl: (data.imageUrl as string | null) ?? null,
       likesCount: (data.likesCount as number) ?? 0,
       commentsCount: (data.commentsCount as number) ?? 0,
       createdAt: data.createdAt?.toDate

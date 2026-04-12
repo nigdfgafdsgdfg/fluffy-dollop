@@ -17,16 +17,22 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  Comment,
+  CommentList,
+  CreateCommentBody,
   CreatePostBody,
   CreateUserProfileBody,
   ErrorResponse,
   FollowList,
   FollowResult,
   GetFeedParams,
+  GetPostCommentsParams,
   GetUserPostsParams,
   HealthStatus,
   PaginatedPosts,
   Post,
+  RequestUploadUrlBody,
+  RequestUploadUrlResponse,
   UserProfile,
 } from "./api.schemas";
 
@@ -40,7 +46,6 @@ type Awaited<O> = O extends AwaitedInput<infer T> ? T : never;
 type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
 
 /**
- * Returns server health status
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
@@ -637,7 +642,7 @@ export function useGetUserFollowing<
 }
 
 /**
- * @summary Create a new text post
+ * @summary Create a new post
  */
 export const getCreatePostUrl = () => {
   return `/api/posts`;
@@ -700,7 +705,7 @@ export type CreatePostMutationBody = BodyType<CreatePostBody>;
 export type CreatePostMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Create a new text post
+ * @summary Create a new post
  */
 export const useCreatePost = <
   TError = ErrorType<ErrorResponse>,
@@ -884,6 +889,376 @@ export const useDeletePost = <
 };
 
 /**
+ * @summary Get comments for a post
+ */
+export const getGetPostCommentsUrl = (
+  postId: string,
+  params?: GetPostCommentsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/posts/${postId}/comments?${stringifiedParams}`
+    : `/api/posts/${postId}/comments`;
+};
+
+export const getPostComments = async (
+  postId: string,
+  params?: GetPostCommentsParams,
+  options?: RequestInit,
+): Promise<CommentList> => {
+  return customFetch<CommentList>(getGetPostCommentsUrl(postId, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPostCommentsQueryKey = (
+  postId: string,
+  params?: GetPostCommentsParams,
+) => {
+  return [
+    `/api/posts/${postId}/comments`,
+    ...(params ? [params] : []),
+  ] as const;
+};
+
+export const getGetPostCommentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPostComments>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  postId: string,
+  params?: GetPostCommentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPostComments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPostCommentsQueryKey(postId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPostComments>>> = ({
+    signal,
+  }) => getPostComments(postId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!postId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPostComments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPostCommentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPostComments>>
+>;
+export type GetPostCommentsQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get comments for a post
+ */
+
+export function useGetPostComments<
+  TData = Awaited<ReturnType<typeof getPostComments>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  postId: string,
+  params?: GetPostCommentsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPostComments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPostCommentsQueryOptions(postId, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a comment or reply on a post
+ */
+export const getCreateCommentUrl = (postId: string) => {
+  return `/api/posts/${postId}/comments`;
+};
+
+export const createComment = async (
+  postId: string,
+  createCommentBody: CreateCommentBody,
+  options?: RequestInit,
+): Promise<Comment> => {
+  return customFetch<Comment>(getCreateCommentUrl(postId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCommentBody),
+  });
+};
+
+export const getCreateCommentMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createComment>>,
+    TError,
+    { postId: string; data: BodyType<CreateCommentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createComment>>,
+  TError,
+  { postId: string; data: BodyType<CreateCommentBody> },
+  TContext
+> => {
+  const mutationKey = ["createComment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createComment>>,
+    { postId: string; data: BodyType<CreateCommentBody> }
+  > = (props) => {
+    const { postId, data } = props ?? {};
+
+    return createComment(postId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCommentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createComment>>
+>;
+export type CreateCommentMutationBody = BodyType<CreateCommentBody>;
+export type CreateCommentMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Create a comment or reply on a post
+ */
+export const useCreateComment = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createComment>>,
+    TError,
+    { postId: string; data: BodyType<CreateCommentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createComment>>,
+  TError,
+  { postId: string; data: BodyType<CreateCommentBody> },
+  TContext
+> => {
+  return useMutation(getCreateCommentMutationOptions(options));
+};
+
+/**
+ * @summary Delete a comment
+ */
+export const getDeleteCommentUrl = (postId: string, commentId: string) => {
+  return `/api/posts/${postId}/comments/${commentId}`;
+};
+
+export const deleteComment = async (
+  postId: string,
+  commentId: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteCommentUrl(postId, commentId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCommentMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteComment>>,
+    TError,
+    { postId: string; commentId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteComment>>,
+  TError,
+  { postId: string; commentId: string },
+  TContext
+> => {
+  const mutationKey = ["deleteComment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteComment>>,
+    { postId: string; commentId: string }
+  > = (props) => {
+    const { postId, commentId } = props ?? {};
+
+    return deleteComment(postId, commentId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCommentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteComment>>
+>;
+
+export type DeleteCommentMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a comment
+ */
+export const useDeleteComment = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteComment>>,
+    TError,
+    { postId: string; commentId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteComment>>,
+  TError,
+  { postId: string; commentId: string },
+  TContext
+> => {
+  return useMutation(getDeleteCommentMutationOptions(options));
+};
+
+/**
+ * @summary Request a presigned URL for image upload
+ */
+export const getRequestUploadUrlUrl = () => {
+  return `/api/storage/uploads/request-url`;
+};
+
+export const requestUploadUrl = async (
+  requestUploadUrlBody: RequestUploadUrlBody,
+  options?: RequestInit,
+): Promise<RequestUploadUrlResponse> => {
+  return customFetch<RequestUploadUrlResponse>(getRequestUploadUrlUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(requestUploadUrlBody),
+  });
+};
+
+export const getRequestUploadUrlMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestUploadUrl>>,
+    TError,
+    { data: BodyType<RequestUploadUrlBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof requestUploadUrl>>,
+  TError,
+  { data: BodyType<RequestUploadUrlBody> },
+  TContext
+> => {
+  const mutationKey = ["requestUploadUrl"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof requestUploadUrl>>,
+    { data: BodyType<RequestUploadUrlBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return requestUploadUrl(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RequestUploadUrlMutationResult = NonNullable<
+  Awaited<ReturnType<typeof requestUploadUrl>>
+>;
+export type RequestUploadUrlMutationBody = BodyType<RequestUploadUrlBody>;
+export type RequestUploadUrlMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Request a presigned URL for image upload
+ */
+export const useRequestUploadUrl = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof requestUploadUrl>>,
+    TError,
+    { data: BodyType<RequestUploadUrlBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof requestUploadUrl>>,
+  TError,
+  { data: BodyType<RequestUploadUrlBody> },
+  TContext
+> => {
+  return useMutation(getRequestUploadUrlMutationOptions(options));
+};
+
+/**
  * @summary Follow a user
  */
 export const getFollowUserUrl = (targetUserId: string) => {
@@ -1052,7 +1427,7 @@ export const useUnfollowUser = <
 };
 
 /**
- * @summary Get personalized feed based on who the user follows
+ * @summary Get personalized feed
  */
 export const getGetFeedUrl = (params?: GetFeedParams) => {
   const normalizedParams = new URLSearchParams();
@@ -1115,7 +1490,7 @@ export type GetFeedQueryResult = NonNullable<
 export type GetFeedQueryError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Get personalized feed based on who the user follows
+ * @summary Get personalized feed
  */
 
 export function useGetFeed<

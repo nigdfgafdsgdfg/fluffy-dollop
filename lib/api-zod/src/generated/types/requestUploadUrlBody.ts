@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CreatePostBody {
-  content: string;
-  /** @nullable */
-  imageUrl?: string | null;
+export interface RequestUploadUrlBody {
+  name: string;
+  size: number;
+  contentType: string;
 }

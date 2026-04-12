@@ -1,6 +1,5 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
   description: Twitter-like API specification with Firebase Auth
@@ -20,13 +19,17 @@ tags:
     description: Follow/unfollow operations
   - name: feed
     description: Feed operations
+  - name: comments
+    description: Comment and reply operations
+  - name: storage
+    description: Object storage upload and serving
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -206,7 +209,7 @@ paths:
     post:
       operationId: createPost
       tags: [posts]
-      summary: Create a new text post
+      summary: Create a new post
       security:
         - bearerAuth: []
       requestBody:
@@ -283,13 +286,149 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "403":
-          description: Forbidden - not the post owner
+          description: Forbidden
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts/{postId}/comments:
+    get:
+      operationId: getPostComments
+      tags: [comments]
+      summary: Get comments for a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentList"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createComment
+      tags: [comments]
+      summary: Create a comment or reply on a post
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCommentBody"
+      responses:
+        "201":
+          description: Comment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /posts/{postId}/comments/{commentId}:
+    delete:
+      operationId: deleteComment
+      tags: [comments]
+      summary: Delete a comment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: commentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Comment deleted
+        "403":
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Comment not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned URL for image upload
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned upload URL generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+        "400":
+          description: Bad request
           content:
             application/json:
               schema:
@@ -316,7 +455,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/FollowResult"
         "400":
-          description: Cannot follow yourself
+          description: Bad request
           content:
             application/json:
               schema:
@@ -353,13 +492,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/FollowResult"
         "400":
-          description: Not following this user
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "401":
-          description: Unauthorized
+          description: Bad request
           content:
             application/json:
               schema:
@@ -369,7 +502,7 @@ paths:
     get:
       operationId: getFeed
       tags: [feed]
-      summary: Get personalized feed based on who the user follows
+      summary: Get personalized feed
       security:
         - bearerAuth: []
       parameters:
@@ -386,7 +519,7 @@ paths:
             type: ["string", "null"]
       responses:
         "200":
-          description: Paginated feed of posts
+          description: Paginated feed
           content:
             application/json:
               schema:
@@ -411,16 +544,14 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
     ErrorResponse:
       type: object
       properties:
         error:
           type: string
-      required:
-        - error
+      required: [error]
 
     UserProfile:
       type: object
@@ -466,9 +597,7 @@ components:
           type: ["string", "null"]
         avatarUrl:
           type: ["string", "null"]
-      required:
-        - username
-        - displayName
+      required: [username, displayName]
 
     Post:
       type: object
@@ -485,6 +614,8 @@ components:
           type: ["string", "null"]
         content:
           type: string
+        imageUrl:
+          type: ["string", "null"]
         likesCount:
           type: integer
         commentsCount:
@@ -499,6 +630,7 @@ components:
         - authorDisplayName
         - authorAvatarUrl
         - content
+        - imageUrl
         - likesCount
         - commentsCount
         - createdAt
@@ -508,8 +640,9 @@ components:
       properties:
         content:
           type: string
-      required:
-        - content
+        imageUrl:
+          type: ["string", "null"]
+      required: [content]
 
     PaginatedPosts:
       type: object
@@ -522,10 +655,90 @@ components:
           type: ["string", "null"]
         hasMore:
           type: boolean
+      required: [posts, nextCursor, hasMore]
+
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+        postId:
+          type: string
+        parentCommentId:
+          type: ["string", "null"]
+        authorId:
+          type: string
+        authorUsername:
+          type: string
+        authorDisplayName:
+          type: string
+        authorAvatarUrl:
+          type: ["string", "null"]
+        content:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+        repliesCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
       required:
-        - posts
-        - nextCursor
-        - hasMore
+        - id
+        - postId
+        - parentCommentId
+        - authorId
+        - authorUsername
+        - authorDisplayName
+        - authorAvatarUrl
+        - content
+        - imageUrl
+        - repliesCount
+        - createdAt
+
+    CreateCommentBody:
+      type: object
+      properties:
+        content:
+          type: string
+        imageUrl:
+          type: ["string", "null"]
+        parentCommentId:
+          type: ["string", "null"]
+      required: [content]
+
+    CommentList:
+      type: object
+      properties:
+        comments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+        nextCursor:
+          type: ["string", "null"]
+        hasMore:
+          type: boolean
+      required: [comments, nextCursor, hasMore]
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        name:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+      required: [name, size, contentType]
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadURL:
+          type: string
+        objectPath:
+          type: string
+      required: [uploadURL, objectPath]
 
     FollowResult:
       type: object
@@ -534,9 +747,7 @@ components:
           type: boolean
         targetUserId:
           type: string
-      required:
-        - following
-        - targetUserId
+      required: [following, targetUserId]
 
     FollowEntry:
       type: object
@@ -549,11 +760,7 @@ components:
           type: string
         avatarUrl:
           type: ["string", "null"]
-      required:
-        - uid
-        - username
-        - displayName
-        - avatarUrl
+      required: [uid, username, displayName, avatarUrl]
 
     FollowList:
       type: object
@@ -562,5 +769,4 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FollowEntry"
-      required:
-        - users
+      required: [users]

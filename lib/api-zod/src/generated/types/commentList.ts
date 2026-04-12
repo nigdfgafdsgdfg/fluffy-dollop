@@ -5,9 +5,11 @@
  * Twitter-like API specification with Firebase Auth
  * OpenAPI spec version: 0.1.0
  */
+import type { Comment } from "./comment";
 
-export interface CreatePostBody {
-  content: string;
+export interface CommentList {
+  comments: Comment[];
   /** @nullable */
-  imageUrl?: string | null;
+  nextCursor: string | null;
+  hasMore: boolean;
 }

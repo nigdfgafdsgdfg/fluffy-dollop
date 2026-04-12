@@ -44,6 +44,8 @@ export interface Post {
   /** @nullable */
   authorAvatarUrl: string | null;
   content: string;
+  /** @nullable */
+  imageUrl: string | null;
   likesCount: number;
   commentsCount: number;
   createdAt: string;
@@ -51,6 +53,8 @@ export interface Post {
 
 export interface CreatePostBody {
   content: string;
+  /** @nullable */
+  imageUrl?: string | null;
 }
 
 export interface PaginatedPosts {
@@ -58,6 +62,49 @@ export interface PaginatedPosts {
   /** @nullable */
   nextCursor: string | null;
   hasMore: boolean;
+}
+
+export interface Comment {
+  id: string;
+  postId: string;
+  /** @nullable */
+  parentCommentId: string | null;
+  authorId: string;
+  authorUsername: string;
+  authorDisplayName: string;
+  /** @nullable */
+  authorAvatarUrl: string | null;
+  content: string;
+  /** @nullable */
+  imageUrl: string | null;
+  repliesCount: number;
+  createdAt: string;
+}
+
+export interface CreateCommentBody {
+  content: string;
+  /** @nullable */
+  imageUrl?: string | null;
+  /** @nullable */
+  parentCommentId?: string | null;
+}
+
+export interface CommentList {
+  comments: Comment[];
+  /** @nullable */
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface RequestUploadUrlBody {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export interface RequestUploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
 }
 
 export interface FollowResult {
@@ -78,6 +125,14 @@ export interface FollowList {
 }
 
 export type GetUserPostsParams = {
+  limit?: number;
+  /**
+   * @nullable
+   */
+  cursor?: string | null;
+};
+
+export type GetPostCommentsParams = {
   limit?: number;
   /**
    * @nullable

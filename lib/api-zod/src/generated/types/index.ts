@@ -6,6 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./comment";
+export * from "./commentList";
+export * from "./createCommentBody";
 export * from "./createPostBody";
 export * from "./createUserProfileBody";
 export * from "./errorResponse";
@@ -13,8 +16,11 @@ export * from "./followEntry";
 export * from "./followList";
 export * from "./followResult";
 export * from "./getFeedParams";
+export * from "./getPostCommentsParams";
 export * from "./getUserPostsParams";
 export * from "./healthStatus";
 export * from "./paginatedPosts";
 export * from "./post";
+export * from "./requestUploadUrlBody";
+export * from "./requestUploadUrlResponse";
 export * from "./userProfile";

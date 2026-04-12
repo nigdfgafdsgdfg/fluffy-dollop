@@ -12,11 +12,13 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import strings from "@/constants/strings";
 import {
   getGetFeedQueryKey,
   getGetUserPostsQueryKey,
@@ -24,6 +26,10 @@ import {
 } from "@workspace/api-client-react";
 
 const MAX_CHARS = 280;
+const RING_SIZE = 28;
+const RING_STROKE = 2.5;
+const RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export default function ComposeScreen() {
   const colors = useColors();
@@ -36,6 +42,18 @@ export default function ComposeScreen() {
   const remaining = MAX_CHARS - content.length;
   const isOverLimit = remaining < 0;
   const isEmpty = content.trim().length === 0;
+
+  const s = strings.compose;
+
+  const progress = Math.min(content.length / MAX_CHARS, 1);
+  const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
+  const ringColor = isOverLimit
+    ? colors.destructive
+    : remaining < 20
+    ? colors.destructive
+    : remaining < 50
+    ? colors.accent
+    : colors.foreground;
 
   const createPost = useCreatePost({
     mutation: {
@@ -63,15 +81,6 @@ export default function ComposeScreen() {
     router.back();
   };
 
-  const remainingColor =
-    remaining < 0
-      ? colors.destructive
-      : remaining < 20
-      ? "#F4212E"
-      : remaining < 50
-      ? "#FF7A00"
-      : colors.mutedForeground;
-
   return (
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: colors.background }]}
@@ -81,16 +90,12 @@ export default function ComposeScreen() {
         style={[
           styles.header,
           {
-            paddingTop: insets.top + 12,
+            paddingTop: insets.top + 16,
             borderBottomColor: colors.border,
             backgroundColor: colors.background,
           },
         ]}
       >
-        <Pressable onPress={handleCancel} hitSlop={8}>
-          <Feather name="x" size={22} color={colors.foreground} />
-        </Pressable>
-
         <Pressable
           onPress={handlePost}
           disabled={isEmpty || isOverLimit || createPost.isPending}
@@ -98,8 +103,8 @@ export default function ComposeScreen() {
             styles.postButton,
             {
               backgroundColor:
-                isEmpty || isOverLimit ? colors.muted : colors.primary,
-              opacity: createPost.isPending ? 0.7 : 1,
+                isEmpty || isOverLimit ? colors.muted : colors.foreground,
+              opacity: createPost.isPending ? 0.6 : 1,
             },
           ]}
         >
@@ -110,33 +115,49 @@ export default function ComposeScreen() {
                 color:
                   isEmpty || isOverLimit
                     ? colors.mutedForeground
-                    : colors.primaryForeground,
+                    : colors.background,
               },
             ]}
           >
-            {createPost.isPending ? "Posting…" : "Post"}
+            {createPost.isPending ? s.publishing : s.publish}
+          </Text>
+        </Pressable>
+
+        <Text style={[styles.headerTitle, { color: colors.mutedForeground }]}>
+          {s.headerTitle}
+        </Text>
+
+        <Pressable onPress={handleCancel} hitSlop={8} style={styles.cancelBtn}>
+          <Text style={[styles.cancelText, { color: colors.mutedForeground }]}>
+            {s.cancel}
           </Text>
         </Pressable>
       </View>
 
       <View style={styles.body}>
+        <View style={styles.inputWrap}>
+          <Text style={[styles.authorName, { color: colors.mutedForeground }]}>
+            {profile?.displayName ?? ""}
+          </Text>
+          <TextInput
+            ref={inputRef}
+            style={[styles.input, { color: colors.foreground }]}
+            placeholder={s.placeholder}
+            placeholderTextColor={colors.mutedForeground}
+            multiline
+            autoFocus
+            value={content}
+            onChangeText={setContent}
+            maxLength={MAX_CHARS + 50}
+            textAlignVertical="top"
+            textAlign="right"
+            writingDirection="rtl"
+          />
+        </View>
         <Avatar
           uri={profile?.avatarUrl}
           displayName={profile?.displayName ?? "Me"}
-          size={44}
-        />
-
-        <TextInput
-          ref={inputRef}
-          style={[styles.input, { color: colors.foreground }]}
-          placeholder="What is happening?!"
-          placeholderTextColor={colors.mutedForeground}
-          multiline
-          autoFocus
-          value={content}
-          onChangeText={setContent}
-          maxLength={MAX_CHARS + 50}
-          textAlignVertical="top"
+          size={42}
         />
       </View>
 
@@ -144,20 +165,56 @@ export default function ComposeScreen() {
         style={[
           styles.footer,
           {
-            paddingBottom: insets.bottom + 8,
+            paddingBottom: insets.bottom + 10,
             borderTopColor: colors.border,
           },
         ]}
       >
         {createPost.isError ? (
           <Text style={[styles.errorText, { color: colors.destructive }]}>
-            Failed to post. Please try again.
+            {s.errorPost}
           </Text>
-        ) : null}
-        <View style={styles.footerRight}>
-          <Text style={[styles.counter, { color: remainingColor }]}>
-            {remaining}
-          </Text>
+        ) : (
+          <View style={styles.footerLeft} />
+        )}
+
+        <View style={styles.ringWrap}>
+          {remaining < 50 && (
+            <Text
+              style={[
+                styles.remainingText,
+                {
+                  color: ringColor,
+                  marginLeft: 6,
+                },
+              ]}
+            >
+              {remaining < 0 ? remaining : remaining}
+            </Text>
+          )}
+          <Svg width={RING_SIZE} height={RING_SIZE}>
+            <Circle
+              cx={RING_SIZE / 2}
+              cy={RING_SIZE / 2}
+              r={RADIUS}
+              stroke={colors.border}
+              strokeWidth={RING_STROKE}
+              fill="none"
+            />
+            <Circle
+              cx={RING_SIZE / 2}
+              cy={RING_SIZE / 2}
+              r={RADIUS}
+              stroke={ringColor}
+              strokeWidth={RING_STROKE}
+              fill="none"
+              strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              rotation="-90"
+              origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+            />
+          </Svg>
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -170,52 +227,89 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  cancelBtn: {
+    minWidth: 52,
+    alignItems: "flex-end",
+  },
+  cancelText: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 15,
+    writingDirection: "rtl",
+  },
+  headerTitle: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    letterSpacing: 0.8,
+    writingDirection: "rtl",
+  },
   postButton: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 20,
+    minWidth: 64,
+    alignItems: "center",
   },
   postButtonText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    letterSpacing: 0.2,
+    writingDirection: "rtl",
   },
   body: {
     flex: 1,
     flexDirection: "row",
-    padding: 16,
-    gap: 12,
+    padding: 20,
+    gap: 14,
+  },
+  inputWrap: {
+    flex: 1,
+    gap: 6,
+    alignItems: "flex-end",
+  },
+  authorName: {
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    writingDirection: "rtl",
   },
   input: {
     flex: 1,
+    width: "100%",
     fontFamily: "Inter_400Regular",
     fontSize: 18,
-    lineHeight: 26,
+    lineHeight: 29,
     paddingTop: 0,
   },
   footer: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     borderTopWidth: StyleSheet.hairlineWidth,
-    minHeight: 48,
+    minHeight: 56,
   },
-  footerRight: {
+  footerLeft: {
     flex: 1,
-    alignItems: "flex-end",
   },
-  counter: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
+  ringWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  remainingText: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    minWidth: 24,
+    textAlign: "right",
   },
   errorText: {
     fontFamily: "Inter_400Regular",
-    fontSize: 14,
+    fontSize: 13,
     flex: 1,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
 });

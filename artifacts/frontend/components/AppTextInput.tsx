@@ -1,4 +1,4 @@
-import React, { forwardRef } from "react";
+import React, { forwardRef, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -16,13 +16,21 @@ interface AppTextInputProps extends TextInputProps {
 }
 
 export const AppTextInput = forwardRef<TextInput, AppTextInputProps>(
-  ({ label, error, hint, style, ...props }, ref) => {
+  ({ label, error, hint, style, onFocus, onBlur, ...props }, ref) => {
     const colors = useColors();
+    const [focused, setFocused] = useState(false);
 
     return (
       <View style={styles.container}>
         {label && (
-          <Text style={[styles.label, { color: colors.foreground }]}>
+          <Text
+            style={[
+              styles.label,
+              {
+                color: focused ? colors.accent : colors.mutedForeground,
+              },
+            ]}
+          >
             {label}
           </Text>
         )}
@@ -31,14 +39,29 @@ export const AppTextInput = forwardRef<TextInput, AppTextInputProps>(
           style={[
             styles.input,
             {
-              backgroundColor: colors.card,
-              borderColor: error ? colors.destructive : colors.input,
+              backgroundColor: focused ? colors.background : colors.card,
+              borderColor: error
+                ? colors.destructive
+                : focused
+                ? colors.accent
+                : colors.border,
               color: colors.foreground,
-              borderRadius: colors.radius / 2,
+              borderRadius: colors.radius,
+              borderWidth: focused ? 1.5 : 1,
             },
             style,
           ]}
           placeholderTextColor={colors.mutedForeground}
+          textAlign="right"
+          writingDirection="rtl"
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus?.(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur?.(e);
+          }}
           {...props}
         />
         {error && (
@@ -64,21 +87,27 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: "Inter_600SemiBold",
-    fontSize: 14,
+    fontSize: 12,
+    textAlign: "right",
+    writingDirection: "rtl",
+    letterSpacing: 0.4,
   },
   input: {
-    height: 48,
+    height: 50,
     paddingHorizontal: 14,
-    borderWidth: 1.5,
     fontFamily: "Inter_400Regular",
-    fontSize: 16,
+    fontSize: 15,
   },
   error: {
     fontFamily: "Inter_400Regular",
-    fontSize: 13,
+    fontSize: 12,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   hint: {
     fontFamily: "Inter_400Regular",
-    fontSize: 13,
+    fontSize: 12,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
 });

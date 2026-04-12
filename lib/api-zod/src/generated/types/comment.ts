@@ -6,8 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface Post {
+export interface Comment {
   id: string;
+  postId: string;
+  /** @nullable */
+  parentCommentId: string | null;
   authorId: string;
   authorUsername: string;
   authorDisplayName: string;
@@ -16,7 +19,6 @@ export interface Post {
   content: string;
   /** @nullable */
   imageUrl: string | null;
-  likesCount: number;
-  commentsCount: number;
+  repliesCount: number;
   createdAt: Date;
 }

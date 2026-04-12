@@ -20,13 +20,13 @@ function getInitials(name: string): string {
 
 function getColorForName(name: string): string {
   const palette = [
-    "#1D9BF0",
-    "#794BC4",
-    "#00BA7C",
-    "#FF7A00",
-    "#F4212E",
-    "#FF6B6B",
-    "#4ECDC4",
+    "#C47A3A",
+    "#7A6B55",
+    "#5B7A6B",
+    "#8B5E52",
+    "#4A6B8A",
+    "#7A5B8B",
+    "#6B7A4A",
   ];
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
@@ -74,7 +74,7 @@ export function Avatar({ uri, displayName, size = 40 }: AvatarProps) {
       <Text
         style={[
           styles.initials,
-          { fontSize: size * 0.38, color: "#FFFFFF" },
+          { fontSize: size * 0.36, color: "#FFFFFF" },
         ]}
         numberOfLines={1}
       >
@@ -86,7 +86,7 @@ export function Avatar({ uri, displayName, size = 40 }: AvatarProps) {
 
 const styles = StyleSheet.create({
   avatar: {
-    borderWidth: 0.5,
+    borderWidth: 0,
   },
   initialsContainer: {
     alignItems: "center",
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
   },
   initials: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Inter_600SemiBold",
     letterSpacing: 0.5,
   },
 });

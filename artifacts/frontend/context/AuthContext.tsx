@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [needsProfile, setNeedsProfile] = useState(false);
 
-  const fetchProfile = useCallback(async () => {
+  const fetchProfile = useCallback(async (isRetry = false): Promise<UserProfile | null> => {
     try {
       const userProfile = await getMe();
       setProfileState(userProfile);
@@ -43,10 +43,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return userProfile;
     } catch (err: unknown) {
       const apiErr = err as { status?: number };
-      if (apiErr?.status === 401 || apiErr?.status === 404) {
+
+      if (apiErr?.status === 404) {
         setProfileState(null);
         setNeedsProfile(true);
+        return null;
       }
+
+      if (apiErr?.status === 401 && !isRetry) {
+        try {
+          if (auth.currentUser) {
+            await auth.currentUser.getIdToken(true);
+          }
+          return fetchProfile(true);
+        } catch {
+          setProfileState(null);
+          setNeedsProfile(false);
+          return null;
+        }
+      }
+
+      setProfileState(null);
+      setNeedsProfile(false);
       return null;
     }
   }, []);
@@ -55,7 +73,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAuthTokenGetter(async () => {
       const currentUser = auth.currentUser;
       if (!currentUser) return null;
-      return currentUser.getIdToken();
+      try {
+        return await currentUser.getIdToken(false);
+      } catch {
+        return await currentUser.getIdToken(true);
+      }
     });
 
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -82,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = useCallback(async () => {
     if (Platform.OS !== "web") {
-      throw new Error("Google sign-in is only supported on web in Expo Go.");
+      throw new Error("Google sign-in is only supported on web.");
     }
     const provider = new GoogleAuthProvider();
     await signInWithPopup(auth, provider);

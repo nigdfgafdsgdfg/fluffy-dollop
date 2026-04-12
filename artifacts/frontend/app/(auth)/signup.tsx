@@ -17,6 +17,7 @@ import { AppTextInput } from "@/components/AppTextInput";
 import { Button } from "@/components/Button";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import strings from "@/constants/strings";
 
 export default function SignupScreen() {
   const colors = useColors();
@@ -35,15 +36,15 @@ export default function SignupScreen() {
 
   const handleSignup = async () => {
     if (!email.trim() || !password || !confirmPassword) {
-      setError("Please fill in all fields.");
+      setError(strings.signup.errorFillAll);
       return;
     }
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError(strings.signup.errorPasswordLength);
       return;
     }
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
+      setError(strings.signup.errorPasswordMatch);
       return;
     }
     setError("");
@@ -53,11 +54,11 @@ export default function SignupScreen() {
     } catch (err: unknown) {
       const e = err as { code?: string; message?: string };
       if (e.code === "auth/email-already-in-use") {
-        setError("An account with this email already exists.");
+        setError(strings.signup.errorEmailInUse);
       } else if (e.code === "auth/invalid-email") {
-        setError("Please enter a valid email address.");
+        setError(strings.signup.errorInvalidEmail);
       } else {
-        setError(e.message ?? "Something went wrong. Please try again.");
+        setError(e.message ?? strings.signup.errorGeneric);
       }
     } finally {
       setIsLoading(false);
@@ -73,19 +74,23 @@ export default function SignupScreen() {
         contentContainerStyle={[
           styles.scroll,
           {
-            paddingTop: insets.top + 40,
-            paddingBottom: insets.bottom + 32,
+            paddingTop: insets.top + 60,
+            paddingBottom: insets.bottom + 40,
           },
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Feather name="twitter" size={36} color={colors.primary} />
-          <Text style={[styles.title, { color: colors.foreground }]}>
-            Create your account
+          <Text style={[styles.wordmark, { color: colors.foreground }]}>
+            {strings.appName}
+          </Text>
+          <Text style={[styles.tagline, { color: colors.mutedForeground }]}>
+            {strings.appTaglineSignup}
           </Text>
         </View>
+
+        <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
 
         <View style={styles.form}>
           {error ? (
@@ -93,7 +98,7 @@ export default function SignupScreen() {
               style={[
                 styles.errorBox,
                 {
-                  backgroundColor: colors.accent,
+                  backgroundColor: colors.card,
                   borderColor: colors.destructive,
                 },
               ]}
@@ -105,7 +110,7 @@ export default function SignupScreen() {
           ) : null}
 
           <AppTextInput
-            label="Email"
+            label={strings.signup.email}
             value={email}
             onChangeText={setEmail}
             placeholder="you@example.com"
@@ -119,10 +124,10 @@ export default function SignupScreen() {
           <View>
             <AppTextInput
               ref={passwordRef}
-              label="Password"
+              label={strings.signup.password}
               value={password}
               onChangeText={setPassword}
-              placeholder="At least 6 characters"
+              placeholder={strings.signup.passwordPlaceholder}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               returnKeyType="next"
@@ -135,7 +140,7 @@ export default function SignupScreen() {
             >
               <Feather
                 name={showPassword ? "eye-off" : "eye"}
-                size={18}
+                size={16}
                 color={colors.mutedForeground}
               />
             </Pressable>
@@ -143,10 +148,10 @@ export default function SignupScreen() {
 
           <AppTextInput
             ref={confirmRef}
-            label="Confirm password"
+            label={strings.signup.confirmPassword}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
-            placeholder="Repeat your password"
+            placeholder={strings.signup.confirmPasswordPlaceholder}
             secureTextEntry={!showPassword}
             autoCapitalize="none"
             returnKeyType="done"
@@ -154,7 +159,7 @@ export default function SignupScreen() {
           />
 
           <Button
-            label="Create account"
+            label={strings.signup.createAccount}
             onPress={handleSignup}
             isLoading={isLoading}
             fullWidth
@@ -163,12 +168,12 @@ export default function SignupScreen() {
 
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
-            Already have an account?{" "}
+            {strings.signup.haveAccount}{" "}
           </Text>
           <Link href="/(auth)/login" asChild>
             <Pressable>
-              <Text style={[styles.footerLink, { color: colors.primary }]}>
-                Sign in
+              <Text style={[styles.footerLink, { color: colors.foreground }]}>
+                {strings.signup.signIn}
               </Text>
             </Pressable>
           </Link>
@@ -182,46 +187,60 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
-    paddingHorizontal: 28,
-    gap: 32,
+    paddingHorizontal: 32,
+    gap: 28,
   },
   header: {
-    alignItems: "center",
-    gap: 16,
+    alignItems: "flex-end",
+    gap: 6,
   },
-  title: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 28,
-    textAlign: "center",
+  wordmark: {
+    fontFamily: "PlayfairDisplay_700Bold_Italic",
+    fontSize: 42,
+    letterSpacing: -1,
+  },
+  tagline: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   form: {
-    gap: 16,
+    gap: 14,
   },
   errorBox: {
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 6,
     borderWidth: 1,
   },
   errorText: {
     fontFamily: "Inter_400Regular",
-    fontSize: 14,
+    fontSize: 13,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   eyeButton: {
     position: "absolute",
-    right: 14,
+    left: 14,
     bottom: 14,
+  },
+  dividerLine: {
+    height: StyleSheet.hairlineWidth,
   },
   footer: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "flex-end",
     alignItems: "center",
   },
   footerText: {
     fontFamily: "Inter_400Regular",
-    fontSize: 15,
+    fontSize: 14,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   footerLink: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 14,
+    textDecorationLine: "underline",
   },
 });

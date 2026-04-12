@@ -1,0 +1,137 @@
+const strings = {
+  appName: "مرمر",
+  appTaglineLogin: "خواطر، تُشارَك بهدوء",
+  appTaglineSignup: "انضم إلى المحادثة",
+
+  login: {
+    email: "البريد الإلكتروني",
+    password: "كلمة المرور",
+    continue: "متابعة",
+    continueGoogle: "المتابعة عبر Google",
+    or: "أو",
+    newHere: "جديد هنا؟",
+    createAccount: "إنشاء حساب",
+    errorInvalidCredential: "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+    errorFillAll: "يرجى ملء جميع الحقول.",
+    errorGeneric: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+    errorGoogleFailed: "فشل تسجيل الدخول عبر Google.",
+  },
+
+  signup: {
+    title: "إنشاء حساب",
+    email: "البريد الإلكتروني",
+    password: "كلمة المرور",
+    passwordPlaceholder: "٦ أحرف على الأقل",
+    confirmPassword: "تأكيد كلمة المرور",
+    confirmPasswordPlaceholder: "أعد كتابة كلمة المرور",
+    createAccount: "إنشاء الحساب",
+    haveAccount: "لديك حساب بالفعل؟",
+    signIn: "تسجيل الدخول",
+    errorFillAll: "يرجى ملء جميع الحقول.",
+    errorPasswordLength: "يجب أن تكون كلمة المرور ٦ أحرف على الأقل.",
+    errorPasswordMatch: "كلمتا المرور غير متطابقتين.",
+    errorEmailInUse: "يوجد حساب بهذا البريد الإلكتروني بالفعل.",
+    errorInvalidEmail: "يرجى إدخال بريد إلكتروني صحيح.",
+    errorGeneric: "حدث خطأ ما. يرجى المحاولة مرة أخرى.",
+  },
+
+  profileSetup: {
+    title: "أكمل ملفك الشخصي",
+    subtitle: "أخبر الجميع من أنت",
+    username: "اسم المستخدم",
+    usernamePlaceholder: "اسمك_هنا",
+    usernameHint: "أحرف وأرقام وشرطات سفلية فقط",
+    displayName: "الاسم المعروض",
+    displayNamePlaceholder: "اسمك",
+    bio: "نبذة شخصية (اختياري)",
+    bioPlaceholder: "أخبر الناس عنك",
+    createProfile: "إنشاء الملف الشخصي",
+    errorUsernameTaken: "اسم المستخدم هذا محجوز.",
+    errorUsernameRequired: "اسم المستخدم مطلوب.",
+    errorUsernameFormat: "أحرف وأرقام وشرطات سفلية فقط. ٣٠ حرفاً كحد أقصى.",
+    errorDisplayNameRequired: "الاسم المعروض مطلوب.",
+    errorDisplayNameLength: "يجب أن يكون الاسم المعروض ٥٠ حرفاً أو أقل.",
+    errorGeneric: "فشل إنشاء الملف الشخصي. يرجى المحاولة مرة أخرى.",
+  },
+
+  home: {
+    navTitle: "مرمر",
+    emptyTitle: "لا يوجد شيء هنا بعد",
+    emptyMessage: "تابع أشخاصاً لترى منشوراتهم في خلاصتك.",
+    errorTitle: "حدث خطأ ما",
+    errorMessage: "لم نتمكن من تحميل خلاصتك. اسحب للأسفل للمحاولة مجدداً.",
+  },
+
+  profile: {
+    navTitle: "الملف الشخصي",
+    following: "يتابع",
+    followers: "متابعون",
+    posts: "المنشورات",
+    emptyTitle: "لا توجد منشورات بعد",
+    emptyMessage: "شارك ما يدور في ذهنك.",
+  },
+
+  compose: {
+    headerTitle: "منشور جديد",
+    replyHeaderTitle: "رد جديد",
+    cancel: "إلغاء",
+    publish: "نشر",
+    publishing: "جارٍ النشر…",
+    placeholder: "ما الذي يدور في ذهنك؟",
+    replyPlaceholder: "ردّك…",
+    errorPost: "فشل النشر. يرجى المحاولة مرة أخرى.",
+    replyingTo: (username: string) => `رداً على @${username}`,
+    addImage: "إضافة صورة",
+    removeImage: "إزالة الصورة",
+    uploadingImage: "جارٍ رفع الصورة…",
+  },
+
+  postDetail: {
+    navTitle: "المنشور",
+    repliesTitle: "الردود",
+    noReplies: "لا توجد ردود بعد",
+    noRepliesMessage: "كن أول من يرد.",
+  },
+
+  comments: {
+    viewReplies: (n: number) => `${n} رد`,
+    replyToThis: "رد",
+    deleteTitle: "حذف الرد",
+    deleteMessage: "هل تريد حذف هذا الرد؟",
+    deleteConfirm: "حذف",
+    deleteCancel: "إلغاء",
+  },
+
+  postCard: {
+    reply: "رد",
+    like: "إعجاب",
+    deleteTitle: "حذف المنشور",
+    deleteMessage: "هل تريد حذف هذا المنشور نهائياً؟",
+    deleteCancel: "إلغاء",
+    deleteConfirm: "حذف",
+    secondsAgo: (n: number) => `منذ ${n} ث`,
+    minutesAgo: (n: number) => `منذ ${n} د`,
+    hoursAgo: (n: number) => `منذ ${n} س`,
+    daysAgo: (n: number) => `منذ ${n} ي`,
+  },
+
+  userProfile: {
+    posts: "المنشورات",
+    follow: "متابعة",
+    following: "تتابعه",
+    emptyTitle: "لا توجد منشورات بعد",
+    emptyMessage: "لم ينشر هذا الشخص أي شيء بعد.",
+    errorFollow: "فشلت المتابعة",
+  },
+
+  emptyState: {
+    nothingYet: "لا يوجد شيء هنا بعد",
+    followPeople: "تابع أشخاصاً لترى منشوراتهم في خلاصتك.",
+    noPostsYet: "لا توجد منشورات بعد",
+    shareYourMind: "شارك ما يدور في ذهنك.",
+    somethingWrong: "حدث خطأ ما",
+    tryAgain: "لم نتمكن من التحميل. اسحب للأسفل للمحاولة مجدداً.",
+  },
+};
+
+export default strings;

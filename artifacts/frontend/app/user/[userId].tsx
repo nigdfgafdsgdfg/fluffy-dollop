@@ -19,6 +19,7 @@ import { LoadingState } from "@/components/LoadingState";
 import { PostCard } from "@/components/PostCard";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import strings from "@/constants/strings";
 import {
   getGetUserFollowersQueryKey,
   getGetUserFollowingQueryKey,
@@ -40,6 +41,8 @@ export default function UserProfileScreen() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [refreshing, setRefreshing] = useState(false);
+
+  const s = strings.userProfile;
 
   const {
     data: profile,
@@ -124,13 +127,12 @@ export default function UserProfileScreen() {
           },
         ]}
       >
-        <Pressable onPress={() => router.back()} hitSlop={8}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
-        </Pressable>
-        <Text style={[styles.navTitle, { color: colors.foreground }]}>
-          {profile?.displayName ?? "Profile"}
+        <Text style={[styles.navTitle, { color: colors.mutedForeground }]}>
+          {profile?.displayName ?? ""}
         </Text>
-        <View style={{ width: 22 }} />
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Feather name="arrow-right" size={20} color={colors.foreground} />
+        </Pressable>
       </View>
 
       {profileLoading ? (
@@ -140,12 +142,6 @@ export default function UserProfileScreen() {
           style={[styles.profileHeader, { borderBottomColor: colors.border }]}
         >
           <View style={styles.avatarRow}>
-            <Avatar
-              uri={profile.avatarUrl}
-              displayName={profile.displayName}
-              size={72}
-            />
-
             {!isOwnProfile && (
               <Pressable
                 onPress={handleFollowToggle}
@@ -155,10 +151,10 @@ export default function UserProfileScreen() {
                   {
                     backgroundColor: isFollowing
                       ? "transparent"
-                      : colors.primary,
-                    borderColor: isFollowing ? colors.foreground : colors.primary,
-                    borderWidth: isFollowing ? 1 : 0,
-                    opacity: isPending ? 0.7 : 1,
+                      : colors.foreground,
+                    borderColor: colors.foreground,
+                    borderWidth: 1,
+                    opacity: isPending ? 0.6 : 1,
                   },
                 ]}
               >
@@ -168,43 +164,52 @@ export default function UserProfileScreen() {
                     {
                       color: isFollowing
                         ? colors.foreground
-                        : colors.primaryForeground,
+                        : colors.background,
                     },
                   ]}
                 >
-                  {isPending ? "…" : isFollowing ? "Following" : "Follow"}
+                  {isPending ? "…" : isFollowing ? s.following : s.follow}
                 </Text>
               </Pressable>
             )}
+
+            <Avatar
+              uri={profile.avatarUrl}
+              displayName={profile.displayName}
+              size={64}
+            />
           </View>
 
-          <Text style={[styles.displayName, { color: colors.foreground }]}>
-            {profile.displayName}
-          </Text>
-          <Text style={[styles.username, { color: colors.mutedForeground }]}>
-            @{profile.username}
-          </Text>
-          {profile.bio ? (
-            <Text style={[styles.bio, { color: colors.foreground }]}>
-              {profile.bio}
+          <View style={styles.profileInfo}>
+            <Text style={[styles.displayName, { color: colors.foreground }]}>
+              {profile.displayName}
             </Text>
-          ) : null}
+            <Text style={[styles.username, { color: colors.mutedForeground }]}>
+              @{profile.username}
+            </Text>
+            {profile.bio ? (
+              <Text style={[styles.bio, { color: colors.foreground }]}>
+                {profile.bio}
+              </Text>
+            ) : null}
+          </View>
 
-          <View style={styles.stats}>
-            <View style={styles.stat}>
-              <Text style={[styles.statNum, { color: colors.foreground }]}>
-                {profile.followingCount}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-                Following
-              </Text>
-            </View>
+          <View style={styles.statsRow}>
             <View style={styles.stat}>
               <Text style={[styles.statNum, { color: colors.foreground }]}>
                 {profile.followersCount}
               </Text>
               <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
-                Followers
+                {strings.profile.followers}
+              </Text>
+            </View>
+            <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.stat}>
+              <Text style={[styles.statNum, { color: colors.foreground }]}>
+                {profile.followingCount}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>
+                {strings.profile.following}
               </Text>
             </View>
           </View>
@@ -212,8 +217,8 @@ export default function UserProfileScreen() {
       ) : null}
 
       <View style={[styles.sectionHeader, { borderBottomColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-          Posts
+        <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+          {s.posts}
         </Text>
       </View>
     </>
@@ -235,8 +240,8 @@ export default function UserProfileScreen() {
           ) : (
             <EmptyState
               icon="edit-3"
-              title="No posts yet"
-              message="This user hasn't posted anything yet."
+              title={s.emptyTitle}
+              message={s.emptyMessage}
             />
           )
         }
@@ -244,7 +249,7 @@ export default function UserProfileScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={colors.primary}
+            tintColor={colors.mutedForeground}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -260,76 +265,100 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   navTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 17,
+    fontFamily: "Inter_500Medium",
+    fontSize: 13,
     flex: 1,
-    textAlign: "center",
-    marginHorizontal: 8,
+    textAlign: "right",
+    letterSpacing: 0.2,
+    writingDirection: "rtl",
   },
   profileHeader: {
-    padding: 20,
-    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    gap: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   avatarRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 10,
+    alignItems: "center",
   },
   followButton: {
     paddingHorizontal: 20,
     paddingVertical: 9,
-    borderRadius: 20,
+    borderRadius: 6,
   },
   followButtonText: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 13,
+    letterSpacing: 0.2,
+    writingDirection: "rtl",
+  },
+  profileInfo: {
+    gap: 3,
+    alignItems: "flex-end",
   },
   displayName: {
     fontFamily: "Inter_700Bold",
     fontSize: 22,
+    letterSpacing: -0.5,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
   username: {
     fontFamily: "Inter_400Regular",
-    fontSize: 15,
+    fontSize: 14,
+    textAlign: "right",
   },
   bio: {
     fontFamily: "Inter_400Regular",
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 23,
     marginTop: 4,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
-  stats: {
-    flexDirection: "row",
-    gap: 20,
-    marginTop: 8,
-  },
-  stat: {
+  statsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 20,
+    marginTop: 4,
+    justifyContent: "flex-end",
+  },
+  stat: {
+    alignItems: "center",
+    gap: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 24,
   },
   statNum: {
     fontFamily: "Inter_700Bold",
-    fontSize: 15,
+    fontSize: 18,
+    letterSpacing: -0.5,
   },
   statLabel: {
     fontFamily: "Inter_400Regular",
-    fontSize: 14,
+    fontSize: 11,
+    letterSpacing: 0.3,
+    writingDirection: "rtl",
   },
   sectionHeader: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    alignItems: "flex-end",
   },
   sectionTitle: {
-    fontFamily: "Inter_700Bold",
-    fontSize: 16,
+    fontFamily: "Inter_600SemiBold",
+    fontSize: 11,
+    letterSpacing: 1.2,
+    writingDirection: "rtl",
   },
 });

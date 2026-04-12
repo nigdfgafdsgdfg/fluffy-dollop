@@ -3,52 +3,93 @@ import * as Haptics from "expo-haptics";
 import { useRouter } from "expo-router";
 import React from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  FadeInDown,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import strings from "@/constants/strings";
 import type { Post } from "@workspace/api-client-react";
 import { useDeletePost } from "@workspace/api-client-react";
 
 interface PostCardProps {
   post: Post;
   onDeleted?: () => void;
+  index?: number;
 }
 
 function formatRelativeTime(dateStr: string): string {
+  const s = strings.postCard;
   const now = Date.now();
   const then = new Date(dateStr).getTime();
   const diff = Math.floor((now - then) / 1000);
-
-  if (diff < 60) return `${diff}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
+  if (diff < 60) return s.secondsAgo(Math.max(1, diff));
+  if (diff < 3600) return s.minutesAgo(Math.floor(diff / 60));
+  if (diff < 86400) return s.hoursAgo(Math.floor(diff / 3600));
+  if (diff < 604800) return s.daysAgo(Math.floor(diff / 86400));
+  return new Date(dateStr).toLocaleDateString("ar-SA", { month: "short", day: "numeric" });
 }
 
-export function PostCard({ post, onDeleted }: PostCardProps) {
+function ActionButton({ icon, label, onPress }: {
+  icon: string;
+  label: string | number;
+  onPress?: () => void;
+}) {
+  const colors = useColors();
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const handlePress = () => {
+    scale.value = withSpring(0.75, { damping: 6, stiffness: 300 }, () => {
+      scale.value = withSpring(1, { damping: 8, stiffness: 200 });
+    });
+    onPress?.();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  return (
+    <Pressable onPress={handlePress} style={styles.action}>
+      <Text style={[styles.actionLabel, { color: colors.mutedForeground }]}>
+        {label}
+      </Text>
+      <Animated.View style={animStyle}>
+        <Feather name={icon as any} size={14} color={colors.mutedForeground} />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
   const colors = useColors();
   const router = useRouter();
   const { user } = useAuth();
   const isOwn = user?.uid === post.authorId;
+  const s = strings.postCard;
+
+  const scale = useSharedValue(1);
+  const cardAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   const deleteMutation = useDeletePost({
-    mutation: {
-      onSuccess: () => {
-        onDeleted?.();
-      },
-    },
+    mutation: { onSuccess: () => onDeleted?.() },
   });
 
+  const handlePressIn = () => {
+    scale.value = withSpring(0.984, { damping: 20, stiffness: 400 });
+  };
+  const handlePressOut = () => {
+    scale.value = withSpring(1, { damping: 12, stiffness: 200 });
+  };
+
   const handleDelete = () => {
-    Alert.alert("Delete post", "Are you sure you want to delete this post?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(s.deleteTitle, s.deleteMessage, [
+      { text: s.deleteCancel, style: "cancel" },
       {
-        text: "Delete",
+        text: s.deleteConfirm,
         style: "destructive",
         onPress: () => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -59,158 +100,121 @@ export function PostCard({ post, onDeleted }: PostCardProps) {
   };
 
   const handleUserPress = () => {
-    if (isOwn) {
-      router.push("/(tabs)/profile");
-    } else {
-      router.push(`/user/${post.authorId}`);
-    }
+    if (isOwn) router.push("/(tabs)/profile");
+    else router.push(`/user/${post.authorId}`);
   };
 
-  return (
-    <View
-      style={[
-        styles.card,
-        {
-          borderBottomColor: colors.border,
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
-      <Pressable onPress={handleUserPress}>
-        <Avatar
-          uri={post.authorAvatarUrl}
-          displayName={post.authorDisplayName}
-          size={44}
-        />
-      </Pressable>
+  const enterDelay = Math.min(index, 8) * 70;
 
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Pressable onPress={handleUserPress} style={styles.authorInfo}>
-            <Text
-              style={[styles.displayName, { color: colors.foreground }]}
-              numberOfLines={1}
-            >
-              {post.authorDisplayName}
-            </Text>
-            <Text
-              style={[styles.username, { color: colors.mutedForeground }]}
-              numberOfLines={1}
-            >
-              @{post.authorUsername}
-            </Text>
-            <Text style={[styles.dot, { color: colors.mutedForeground }]}>
-              ·
-            </Text>
-            <Text
-              style={[styles.time, { color: colors.mutedForeground }]}
-              numberOfLines={1}
-            >
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(enterDelay).duration(380).springify().damping(18)}
+      style={cardAnimStyle}
+    >
+      <Pressable
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        style={[styles.card, { backgroundColor: colors.background }]}
+      >
+        <View style={[styles.inner, { borderBottomColor: colors.border }]}>
+          <View style={styles.topRow}>
+            <Text style={[styles.time, { color: colors.mutedForeground }]}>
               {formatRelativeTime(post.createdAt)}
             </Text>
-          </Pressable>
-
-          {isOwn && (
-            <Pressable
-              onPress={handleDelete}
-              style={styles.deleteButton}
-              hitSlop={8}
-            >
-              <Feather
-                name="trash-2"
-                size={16}
-                color={colors.mutedForeground}
-              />
+            <Pressable onPress={handleUserPress} style={styles.authorRow}>
+              <View style={styles.authorText}>
+                <Text style={[styles.displayName, { color: colors.foreground }]} numberOfLines={1}>
+                  {post.authorDisplayName}
+                </Text>
+                <Text style={[styles.handle, { color: colors.mutedForeground }]} numberOfLines={1}>
+                  @{post.authorUsername}
+                </Text>
+              </View>
+              <Avatar uri={post.authorAvatarUrl} displayName={post.authorDisplayName} size={38} />
             </Pressable>
-          )}
-        </View>
-
-        <Text style={[styles.body, { color: colors.foreground }]}>
-          {post.content}
-        </Text>
-
-        <View style={styles.actions}>
-          <View style={styles.action}>
-            <Feather name="message-circle" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>
-              {post.commentsCount}
-            </Text>
           </View>
-          <View style={styles.action}>
-            <Feather name="heart" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>
-              {post.likesCount}
-            </Text>
+
+          <Text style={[styles.body, { color: colors.foreground }]}>
+            {post.content}
+          </Text>
+
+          <View style={styles.footer}>
+            {isOwn && (
+              <Pressable onPress={handleDelete} hitSlop={10} style={styles.deleteBtn}>
+                <Feather name="trash-2" size={13} color={colors.mutedForeground} />
+              </Pressable>
+            )}
+            <View style={styles.actions}>
+              <ActionButton icon="message-circle" label={post.commentsCount > 0 ? post.commentsCount : s.reply} />
+              <ActionButton icon="heart" label={post.likesCount > 0 ? post.likesCount : s.like} />
+              <ActionButton icon="share" label="" />
+            </View>
           </View>
         </View>
-      </View>
-    </View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    flexDirection: "row",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+  card: { paddingHorizontal: 20 },
+  inner: {
+    paddingVertical: 18,
     gap: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  content: {
-    flex: 1,
-    gap: 6,
-  },
-  header: {
+  topRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
+    gap: 10,
   },
-  authorInfo: {
+  authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    flex: 1,
-    overflow: "hidden",
+    gap: 10,
+    flexShrink: 1,
+    justifyContent: "flex-end",
   },
+  authorText: { alignItems: "flex-end", gap: 1, flexShrink: 1 },
   displayName: {
-    fontFamily: "Inter_700Bold",
+    fontFamily: "Amiri_700Bold",
     fontSize: 15,
-    flexShrink: 1,
+    letterSpacing: -0.1,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
-  username: {
+  handle: {
     fontFamily: "Inter_400Regular",
-    fontSize: 14,
-    flexShrink: 1,
-  },
-  dot: {
-    fontSize: 14,
+    fontSize: 12,
+    textAlign: "right",
   },
   time: {
     fontFamily: "Inter_400Regular",
-    fontSize: 14,
+    fontSize: 11,
+    marginTop: 3,
     flexShrink: 0,
   },
-  deleteButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
   body: {
-    fontFamily: "Inter_400Regular",
-    fontSize: 16,
-    lineHeight: 22,
+    fontFamily: "Amiri_400Regular",
+    fontSize: 19,
+    lineHeight: 30,
+    textAlign: "right",
+    writingDirection: "rtl",
   },
-  actions: {
-    flexDirection: "row",
-    gap: 24,
-    marginTop: 4,
-  },
-  action: {
+  footer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "space-between",
+    marginTop: 2,
   },
-  actionCount: {
+  deleteBtn: { padding: 4, opacity: 0.5 },
+  actions: { flexDirection: "row", gap: 18, alignItems: "center" },
+  action: { flexDirection: "row", alignItems: "center", gap: 5 },
+  actionLabel: {
     fontFamily: "Inter_400Regular",
-    fontSize: 14,
+    fontSize: 12,
+    minWidth: 14,
+    textAlign: "right",
   },
 });
