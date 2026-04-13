@@ -177,24 +177,46 @@ export class ObjectStorageService {
   }
 
   normalizeObjectEntityPath(rawPath: string): string {
-    if (!rawPath.startsWith("https://storage.googleapis.com/")) {
+    if (typeof rawPath !== "string") {
+      return "";
+    }
+
+    if (rawPath.startsWith("/objects/")) {
       return rawPath;
     }
 
-    const url = new URL(rawPath);
-    const rawObjectPath = url.pathname;
+    try {
+      const url = new URL(rawPath);
+      let rawObjectPath = "";
 
-    let objectEntityDir = this.getPrivateObjectDir();
-    if (!objectEntityDir.endsWith("/")) {
-      objectEntityDir = `${objectEntityDir}/`;
-    }
+      if (url.hostname === "storage.googleapis.com") {
+        rawObjectPath = url.pathname;
+      } else if (url.hostname === "firebasestorage.googleapis.com") {
+        // Firebase Storage URLs: /v0/b/BUCKET/o/OBJECT_PATH
+        const match = url.pathname.match(/\/v0\/b\/([^/]+)\/o\/(.+)$/);
+        if (match) {
+          rawObjectPath = `/${match[1]}/${decodeURIComponent(match[2])}`;
+        }
+      }
 
-    if (!rawObjectPath.startsWith(objectEntityDir)) {
+      if (!rawObjectPath) {
+        return rawPath;
+      }
+
+      let objectEntityDir = this.getPrivateObjectDir();
+      if (!objectEntityDir.endsWith("/")) {
+        objectEntityDir = `${objectEntityDir}/`;
+      }
+
+      if (rawObjectPath.startsWith(objectEntityDir)) {
+        const entityId = rawObjectPath.slice(objectEntityDir.length);
+        return `/objects/${entityId}`;
+      }
+
       return rawObjectPath;
+    } catch {
+      return rawPath;
     }
-
-    const entityId = rawObjectPath.slice(objectEntityDir.length);
-    return `/objects/${entityId}`;
   }
 
   async trySetObjectEntityAclPolicy(

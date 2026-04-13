@@ -223,47 +223,43 @@ batch.update(db.collection("users").doc(followeeId), { followersCount: FieldValu
 await batch.commit();
 ```
 
-### Get feed (fan-out on read, up to 30 followees)
+### Get feed (fan-out on read, with chunking for scale)
+
+The feed queries posts from all followed users. Since Firestore's `in` operator is limited
+to 30 values, we chunk the followee list and query in parallel.
 
 ```typescript
 const followingSnap = await db.collection("follows").where("followerId", "==", uid).get();
 const followeeIds = followingSnap.docs.map(d => d.data().followeeId);
 
-const snap = await db.collection("posts")
-  .where("authorId", "in", followeeIds.slice(0, 30))
-  .orderBy("createdAt", "desc")
-  .limit(21)
-  .get();
+// Chunk into groups of 30
+const chunks = [];
+for (let i = 0; i < followeeIds.length; i += 30) {
+  chunks.push(followeeIds.slice(i, i + 30));
+}
+
+// Query all chunks in parallel with a robust cursor
+const snaps = await Promise.all(chunks.map(chunk => {
+  let q = db.collection("posts")
+    .where("authorId", "in", chunk)
+    .orderBy("createdAt", "desc")
+    .orderBy("__name__", "desc")
+    .limit(limit + 1);
+  if (cursor) q = q.startAfter(cursorTimestamp, cursorId);
+  return q.get();
+}));
+
+// Merge, sort, and slice in memory
+const merged = snaps.flatMap(s => s.docs).sort(...);
+const posts = merged.slice(0, limit);
 ```
 
----
-
-## Feed Architecture Notes
-
-### Current: Fan-out on Read
-
-The current implementation queries posts from all followed users on demand. Simple,
-correct, and works well when the user follows < ~30 accounts (Firestore `in` limit is 30).
-
-**Limitations:** The `in` operator supports at most 30 values. Users who follow more
-than 30 accounts will only see posts from the 30 most recent follows.
+**Limitations:** While this handles more than 30 followees, fetching from many shards
+on every request becomes inefficient at very high scale (e.g., following > 500 accounts).
+Page 2 must re-query all shards using the cursor.
 
 ### Scaling Path: Fan-out on Write (Cloud Functions)
-
-For users who follow many accounts, add a Cloud Function:
-
-```
-Trigger: onCreate for posts/{postId}
-Action: for each follower of authorId, write to feeds/{followerId}/posts/{postId}
-```
-
-Feed query becomes:
-```typescript
-db.collection("feeds").doc(uid).collection("posts")
-  .orderBy("createdAt", "desc").limit(21)
-```
-
-The API route signature does not change. Swap the implementation when you hit scale limits.
+... (rest of doc) ...
 
 ---
 

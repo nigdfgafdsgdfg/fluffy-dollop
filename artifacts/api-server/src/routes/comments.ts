@@ -47,9 +47,21 @@ router.get(
       .collection("comments");
 
     // Build real Firestore cursor query
-    const baseQuery = commentsRef.orderBy("createdAt", "asc");
+    const baseQuery = commentsRef.orderBy("createdAt", "asc").orderBy("__name__", "asc");
     let finalQuery = baseQuery.limit(limit + 1);
-    if (cursor) {
+    if (cursor && cursor.includes("|")) {
+      const [tsPart, idPart] = cursor.split("|");
+      try {
+        const cursorTimestamp = Timestamp.fromDate(new Date(tsPart));
+        finalQuery = baseQuery.startAfter(cursorTimestamp, idPart).limit(limit + 1);
+      } catch {
+        // ... fallback to ID only if timestamp parse fails (backward compat)
+        const cursorDoc = await commentsRef.doc(cursor).get();
+        if (cursorDoc.exists) {
+          finalQuery = baseQuery.startAfter(cursorDoc).limit(limit + 1);
+        }
+      }
+    } else if (cursor) {
       const cursorDoc = await commentsRef.doc(cursor).get();
       if (cursorDoc.exists) {
         finalQuery = baseQuery.startAfter(cursorDoc).limit(limit + 1);
@@ -77,7 +89,12 @@ router.get(
       };
     });
 
-    const nextCursor = hasMore ? pageDocs[pageDocs.length - 1].id : null;
+    const lastDoc = pageDocs[pageDocs.length - 1];
+    let nextCursor: string | null = null;
+    if (hasMore && lastDoc) {
+      const lastTs = lastDoc.data().createdAt?.toDate?.().toISOString() ?? "";
+      nextCursor = `${lastTs}|${lastDoc.id}`;
+    }
     res.json({ comments, nextCursor, hasMore });
   }
 );

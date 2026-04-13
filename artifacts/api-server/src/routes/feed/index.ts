@@ -55,40 +55,41 @@ router.get(
       chunks.push(followeeIds.slice(i, i + MAX_IN));
     }
 
-    // 3. Decode cursor – the ISO timestamp of the last seen post
+    // 3. Decode cursor – format: "timestamp|docId"
     let cursorTimestamp: typeof Timestamp.prototype | null = null;
-    if (cursor) {
+    let cursorDocId: string | null = null;
+
+    if (cursor && cursor.includes("|")) {
+      const [tsPart, idPart] = cursor.split("|");
       try {
-        cursorTimestamp = Timestamp.fromDate(new Date(cursor));
+        cursorTimestamp = Timestamp.fromDate(new Date(tsPart));
+        cursorDocId = idPart;
       } catch {
         // malformed cursor – treat as first page
       }
     }
 
     // 4. Run all chunk queries in parallel, each filtering server-side
+    // We use a composite sort [createdAt DESC, __name__ DESC] for deterministic merging.
     const chunkSnaps = await Promise.all(
       chunks.map((chunk) => {
-        const base = db
+        let q = db
           .collection("posts")
           .where("authorId", "in", chunk)
           .orderBy("createdAt", "desc")
+          .orderBy("__name__", "desc")
           .limit(limit + 1);
 
-        if (cursorTimestamp) {
-          return db
-            .collection("posts")
-            .where("authorId", "in", chunk)
-            .where("createdAt", "<", cursorTimestamp)
-            .orderBy("createdAt", "desc")
-            .limit(limit + 1)
-            .get();
+        if (cursorTimestamp && cursorDocId) {
+          // Use startAfter with both timestamp and docId for perfect continuity
+          q = q.startAfter(cursorTimestamp, cursorDocId);
         }
 
-        return base.get();
+        return q.get();
       })
     );
 
-    // 5. Merge all docs, de-duplicate, sort by createdAt desc, take limit + 1
+    // 5. Merge all docs, de-duplicate, sort by [createdAt DESC, docId DESC], take limit
     const seen = new Set<string>();
     const merged: FirebaseFirestore.QueryDocumentSnapshot[] = [];
     for (const snap of chunkSnaps) {
@@ -101,15 +102,23 @@ router.get(
     }
 
     merged.sort((a, b) => {
-      const aTime = (a.data().createdAt as typeof Timestamp.prototype)?.toMillis() ?? 0;
-      const bTime = (b.data().createdAt as typeof Timestamp.prototype)?.toMillis() ?? 0;
-      return bTime - aTime;
+      const aData = a.data();
+      const bData = b.data();
+      const aTime = (aData.createdAt as typeof Timestamp.prototype)?.toMillis() ?? 0;
+      const bTime = (bData.createdAt as typeof Timestamp.prototype)?.toMillis() ?? 0;
+
+      if (aTime !== bTime) {
+        return bTime - aTime;
+      }
+      // Tie-break with doc ID for deterministic order
+      return b.id.localeCompare(a.id);
     });
 
-    const hasMore = merged.length > limit;
     const pageDocs = merged.slice(0, limit);
+    const hasMore = merged.length > limit;
 
     // 6. Resolve like status for this page
+    // ... rest of logic stays same ...
     const postIds = pageDocs.map((d) => d.id);
     const likedPostIds = new Set<string>();
 
@@ -125,7 +134,7 @@ router.get(
       }
     }
 
-    // 7. Shape response – nextCursor is the ISO timestamp of the last doc
+    // 7. Shape response
     const posts = pageDocs.map((d) => {
       const data = d.data();
       const createdAt = data.createdAt?.toDate
@@ -146,10 +155,11 @@ router.get(
     });
 
     const lastDoc = pageDocs[pageDocs.length - 1];
-    const nextCursor =
-      hasMore && lastDoc
-        ? (lastDoc.data().createdAt?.toDate?.().toISOString() ?? null)
-        : null;
+    let nextCursor: string | null = null;
+    if (hasMore && lastDoc) {
+      const lastTs = lastDoc.data().createdAt?.toDate?.().toISOString() ?? "";
+      nextCursor = `${lastTs}|${lastDoc.id}`;
+    }
 
     res.json({ posts, nextCursor, hasMore });
   }
