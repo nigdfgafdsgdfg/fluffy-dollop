@@ -35,21 +35,32 @@ router.get(
     if (!params.success) { res.status(400).json({ error: "Invalid post ID" }); return; }
 
     const query = PaginationSchema.safeParse(req.query);
-    const { limit } = query.success ? query.data : { limit: 50 };
+    const { limit, cursor } = query.success ? query.data : { limit: 50, cursor: undefined };
 
     const db = getFirestore();
     const postDoc = await db.collection("posts").doc(params.data.postId).get();
     if (!postDoc.exists) { res.status(404).json({ error: "Post not found" }); return; }
 
-    const commentsSnap = await db
+    const commentsRef = db
       .collection("posts")
       .doc(params.data.postId)
-      .collection("comments")
-      .orderBy("createdAt", "asc")
-      .limit(limit)
-      .get();
+      .collection("comments");
 
-    const comments = commentsSnap.docs.map((doc) => {
+    // Build real Firestore cursor query
+    const baseQuery = commentsRef.orderBy("createdAt", "asc");
+    let finalQuery = baseQuery.limit(limit + 1);
+    if (cursor) {
+      const cursorDoc = await commentsRef.doc(cursor).get();
+      if (cursorDoc.exists) {
+        finalQuery = baseQuery.startAfter(cursorDoc).limit(limit + 1);
+      }
+    }
+
+    const commentsSnap = await finalQuery.get();
+    const hasMore = commentsSnap.docs.length > limit;
+    const pageDocs = commentsSnap.docs.slice(0, limit);
+
+    const comments = pageDocs.map((doc) => {
       const d = doc.data();
       return {
         id: doc.id,
@@ -66,7 +77,8 @@ router.get(
       };
     });
 
-    res.json({ comments, nextCursor: null, hasMore: false });
+    const nextCursor = hasMore ? pageDocs[pageDocs.length - 1].id : null;
+    res.json({ comments, nextCursor, hasMore });
   }
 );
 

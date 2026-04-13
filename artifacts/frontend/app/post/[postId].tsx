@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import React, { useCallback, useRef, useState } from "react";
 import {
   FlatList,
@@ -12,7 +12,7 @@ import {
   Text,
   View,
 } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, useSharedValue, useAnimatedStyle, withSpring } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Avatar } from "@/components/Avatar";
@@ -23,10 +23,48 @@ import { useAuth } from "@/context/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import strings from "@/constants/strings";
 import { resolveImageUrl } from "@/utils/imageUrl";
+
+function ActionButton({ icon, label, onPress, active, activeColor }: {
+  icon: string;
+  label: string | number;
+  onPress?: () => void;
+  active?: boolean;
+  activeColor?: string;
+}) {
+  const colors = useColors();
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const handlePress = () => {
+    scale.value = withSpring(0.7, { damping: 5, stiffness: 320 }, () => {
+      scale.value = withSpring(1, { damping: 8, stiffness: 200 });
+    });
+    onPress?.();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const iconColor = active && activeColor ? activeColor : colors.mutedForeground;
+  const labelColor = active && activeColor ? activeColor : colors.mutedForeground;
+
+  return (
+    <Pressable onPress={handlePress} style={styles.action} hitSlop={8}>
+      <Animated.View style={animStyle}>
+        <Feather name={icon as any} size={20} color={iconColor} />
+      </Animated.View>
+      {!!label && (
+        <Text style={[styles.actionLabel, { color: labelColor }]}>{label}</Text>
+      )}
+    </Pressable>
+  );
+}
 import {
   getGetPostCommentsQueryKey,
   useGetPost,
   useGetPostComments,
+  useLikePost,
+  useUnlikePost,
+  getGetPostQueryKey,
+  getGetFeedQueryKey,
   type Comment,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -76,11 +114,30 @@ export default function PostDetailScreen() {
     return m;
   }, [comments]);
 
-  const onRefresh = useCallback(async () => {
+  const handleRefresh = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   }, [refetch]);
+
+  const likeMutation = useLikePost({
+    mutation: {
+      onSuccess: () => {
+        if (postId) queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(postId) });
+        queryClient.invalidateQueries({ queryKey: getGetFeedQueryKey() });
+      }
+    }
+  });
+
+  const unlikeMutation = useUnlikePost({
+    mutation: {
+      onSuccess: () => {
+        if (postId) queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(postId) });
+        queryClient.invalidateQueries({ queryKey: getGetFeedQueryKey() });
+      }
+    }
+  });
 
   const handleCommentDeleted = useCallback(() => {
     if (postId) queryClient.invalidateQueries({ queryKey: getGetPostCommentsQueryKey(postId) });
@@ -110,6 +167,12 @@ export default function PostDetailScreen() {
         replyToUsername: post?.authorUsername ?? "",
       },
     });
+  };
+
+  const handleLike = () => {
+    if (!post || likeMutation.isPending || unlikeMutation.isPending) return;
+    if (post.likedByMe) unlikeMutation.mutate({ postId: post.id });
+    else likeMutation.mutate({ postId: post.id });
   };
 
   const imageUrl = resolveImageUrl(post?.imageUrl);
@@ -143,10 +206,22 @@ export default function PostDetailScreen() {
     [nestedMap, postId, handleCommentDeleted, handleReply]
   );
 
+  const headerOptions = (
+    <Stack.Screen
+      options={{
+        title: strings.postDetail.navTitle,
+        headerTransparent: true,
+        headerBlurEffect: colors.background === "#14120E" ? "dark" : "light",
+        headerShadowVisible: false,
+        headerTitleStyle: { fontFamily: "Amiri_700Bold", fontSize: 18 },
+      }}
+    />
+  );
+
   if (postLoading) {
     return (
       <View style={[styles.flex, { backgroundColor: colors.background }]}>
-        <NavBar colors={colors} insets={insets} />
+        {headerOptions}
         <LoadingState />
       </View>
     );
@@ -155,7 +230,7 @@ export default function PostDetailScreen() {
   if (!post) {
     return (
       <View style={[styles.flex, { backgroundColor: colors.background }]}>
-        <NavBar colors={colors} insets={insets} />
+        {headerOptions}
         <EmptyState icon="alert-circle" title="لم يُعثر على المنشور" message="ربما تم حذفه." />
       </View>
     );
@@ -163,10 +238,7 @@ export default function PostDetailScreen() {
 
   const ListHeader = (
     <>
-      <Animated.View
-        entering={FadeInDown.delay(0).duration(400).springify().damping(20)}
-        style={[styles.postContainer, { borderBottomColor: colors.border }]}
-      >
+      <View style={[styles.postContainer, { borderBottomColor: colors.border }]}>
         <View style={styles.authorRow}>
           <View style={styles.authorMeta}>
             <Text style={[styles.displayName, { color: colors.foreground }]}>
@@ -195,62 +267,57 @@ export default function PostDetailScreen() {
           {formatFullDate(post.createdAt)}
         </Text>
 
-        <View style={[styles.statsRow, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
-          <Text style={[styles.stat, { color: colors.mutedForeground }]}>
-            <Text style={[styles.statNum, { color: colors.foreground }]}>{post.commentsCount}</Text>
-            {"  "}رد
-          </Text>
-          <Text style={[styles.stat, { color: colors.mutedForeground }]}>
-            <Text style={[styles.statNum, { color: colors.foreground }]}>{post.likesCount}</Text>
-            {"  "}إعجاب
-          </Text>
+        <View style={[styles.actionsRow, { borderTopColor: colors.border }]}>
+          <ActionButton
+            icon="message-circle"
+            label={post.commentsCount > 0 ? post.commentsCount : s.reply}
+            onPress={handleReplyToPost}
+          />
+          <ActionButton
+            icon="heart"
+            label={post.likesCount > 0 ? post.likesCount : s.like}
+            onPress={handleLike}
+            active={post.likedByMe}
+            activeColor={colors.destructive}
+          />
+          <ActionButton icon="share-2" label="" />
         </View>
-
-        <Pressable onPress={handleReplyToPost} style={[styles.replyButton, { borderColor: colors.border }]}>
-          <Feather name="corner-up-left" size={14} color={colors.mutedForeground} />
-          <Text style={[styles.replyButtonText, { color: colors.mutedForeground }]}>
-            {s.repliesTitle}
-          </Text>
-        </Pressable>
-      </Animated.View>
+      </View>
 
       {topLevel.length > 0 && (
-        <Animated.View
-          entering={FadeInDown.delay(80).duration(400).springify().damping(20)}
-          style={[styles.sectionHeader, { borderBottomColor: colors.border }]}
-        >
+        <View style={[styles.sectionHeader, { borderBottomColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
             {s.repliesTitle}
           </Text>
-        </Animated.View>
+        </View>
       )}
     </>
   );
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
-      <NavBar colors={colors} insets={insets} />
+      {headerOptions}
 
       <FlatList
         data={topLevel}
         keyExtractor={(item) => item.id}
         renderItem={renderComment}
         ListHeaderComponent={ListHeader}
-        contentContainerStyle={{ paddingTop: 60 + insets.top }}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{ paddingTop: 16 }}
         ListEmptyComponent={
           commentsLoading ? null : (
             <EmptyState icon="message-circle" title={s.noReplies} message={s.noRepliesMessage} />
           )
         }
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.mutedForeground} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.mutedForeground} />
         }
         showsVerticalScrollIndicator={false}
         style={{ backgroundColor: colors.background }}
       />
 
-      <Animated.View
-        entering={FadeInDown.delay(200).duration(400)}
+      <View
         style={[
           styles.fab,
           { backgroundColor: colors.foreground, bottom: insets.bottom + 20 },
@@ -259,52 +326,13 @@ export default function PostDetailScreen() {
         <Pressable style={styles.fabInner} onPress={handleReplyToPost}>
           <Feather name="corner-up-left" size={16} color={colors.background} />
         </Pressable>
-      </Animated.View>
-    </View>
-  );
-}
-
-function NavBar({ colors, insets }: { colors: any; insets: any }) {
-  const router = useRouter();
-  return (
-    <View
-      style={[
-        styles.navBar,
-        {
-          paddingTop: insets.top + 8,
-          borderBottomColor: colors.border,
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
-      <View style={{ width: 32 }} />
-      <Text style={[styles.navTitle, { color: colors.foreground }]}>
-        {strings.postDetail.navTitle}
-      </Text>
-      <Pressable onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-        <Feather name="chevron-right" size={22} color={colors.foreground} />
-      </Pressable>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  navBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  navTitle: { fontFamily: "Amiri_700Bold", fontSize: 18, writingDirection: "rtl" },
-  backBtn: { padding: 2 },
   postContainer: {
     paddingHorizontal: 20,
     paddingVertical: 20,
@@ -331,42 +359,38 @@ const styles = StyleSheet.create({
   },
   body: {
     fontFamily: "Amiri_400Regular",
-    fontSize: 22,
-    lineHeight: 36,
+    fontSize: 24,
+    lineHeight: 38,
     textAlign: "right",
     writingDirection: "rtl",
   },
   image: {
     width: "100%",
-    height: 280,
-    borderRadius: 10,
+    height: 320,
+    borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
   },
   timestamp: {
     fontFamily: "Inter_400Regular",
-    fontSize: 12,
+    fontSize: 13,
+    textAlign: "right",
+    marginTop: 8,
+  },
+  actionsRow: {
+    flexDirection: "row",
+    gap: 30,
+    justifyContent: "space-around",
+    paddingTop: 16,
+    paddingBottom: 4,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  action: { flexDirection: "row", alignItems: "center", gap: 5 },
+  actionLabel: {
+    fontFamily: "Inter_400Regular",
+    fontSize: 14,
+    minWidth: 16,
     textAlign: "right",
   },
-  statsRow: {
-    flexDirection: "row",
-    gap: 24,
-    justifyContent: "flex-end",
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  stat: { fontFamily: "Amiri_400Regular", fontSize: 15 },
-  statNum: { fontFamily: "Amiri_700Bold", fontSize: 15 },
-  replyButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    paddingVertical: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  replyButtonText: { fontFamily: "Amiri_400Regular", fontSize: 16, writingDirection: "rtl" },
   sectionHeader: {
     paddingHorizontal: 20,
     paddingVertical: 10,

@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
-  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -80,20 +79,16 @@ export function CommentCard({ comment, postId, onDeleted, onReply, index = 0, is
   const handlePressOut = () => { scale.value = withSpring(1, { damping: 12, stiffness: 200 }); };
 
   const imageUrl = resolveImageUrl(comment.imageUrl);
-  const enterDelay = Math.min(index, 10) * 50;
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(enterDelay).duration(350).springify().damping(20)}
-      style={cardStyle}
-    >
+    <Animated.View style={cardStyle}>
       <Pressable
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         style={[
           styles.card,
           { borderBottomColor: colors.border },
-          isNested && { paddingStart: 44 },
+          isNested && { paddingStart: 50 },
         ]}
       >
         {isNested && (
@@ -101,6 +96,7 @@ export function CommentCard({ comment, postId, onDeleted, onReply, index = 0, is
         )}
 
         <View style={styles.inner}>
+          {/* Header */}
           <View style={styles.topRow}>
             <Text style={[styles.time, { color: colors.mutedForeground }]}>
               {formatRelativeTime(comment.createdAt)}
@@ -114,10 +110,11 @@ export function CommentCard({ comment, postId, onDeleted, onReply, index = 0, is
                   @{comment.authorUsername}
                 </Text>
               </View>
-              <Avatar uri={comment.authorAvatarUrl} displayName={comment.authorDisplayName} size={32} />
+              <Avatar uri={comment.authorAvatarUrl} displayName={comment.authorDisplayName} size={34} />
             </Pressable>
           </View>
 
+          {/* Body */}
           <Text style={[styles.body, { color: colors.foreground }]}>
             {comment.content}
           </Text>
@@ -130,22 +127,25 @@ export function CommentCard({ comment, postId, onDeleted, onReply, index = 0, is
             />
           ) : null}
 
+          {/* Footer */}
           <View style={styles.footer}>
-            {isOwn && (
-              <Pressable onPress={handleDelete} hitSlop={10} style={styles.deleteBtn}>
-                <Feather name="trash-2" size={12} color={colors.mutedForeground} />
+            <View style={styles.footerLeft}>
+              <Pressable onPress={handleReply} hitSlop={8} style={styles.replyBtn}>
+                <Feather name="corner-up-left" size={13} color={colors.mutedForeground} />
+                <Text style={[styles.replyLabel, { color: colors.mutedForeground }]}>
+                  {s.replyToThis}
+                </Text>
               </Pressable>
-            )}
-            <Pressable onPress={handleReply} style={styles.replyBtn}>
-              <Feather name="corner-up-left" size={12} color={colors.mutedForeground} />
-              <Text style={[styles.replyLabel, { color: colors.mutedForeground }]}>
-                {s.replyToThis}
-              </Text>
-            </Pressable>
-            {comment.repliesCount > 0 && (
-              <Text style={[styles.repliesCount, { color: colors.mutedForeground }]}>
-                {s.viewReplies(comment.repliesCount)}
-              </Text>
+              {comment.repliesCount > 0 && (
+                <Text style={[styles.repliesCount, { color: colors.mutedForeground }]}>
+                  {s.viewReplies(comment.repliesCount)}
+                </Text>
+              )}
+            </View>
+            {isOwn && (
+              <Pressable onPress={handleDelete} hitSlop={12}>
+                <Feather name="trash-2" size={13} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
+              </Pressable>
             )}
           </View>
         </View>
@@ -156,17 +156,19 @@ export function CommentCard({ comment, postId, onDeleted, onReply, index = 0, is
 
 const styles = StyleSheet.create({
   card: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 18,
     borderBottomWidth: StyleSheet.hairlineWidth,
     position: "relative",
   },
-  inner: { paddingVertical: 14, gap: 8 },
+  inner: { paddingTop: 14, paddingBottom: 6, gap: 10 },
   nestedLine: {
     position: "absolute",
     top: 14,
     bottom: 14,
     width: 1.5,
     start: 32,
+    borderRadius: 1,
+    opacity: 0.35,
   },
   topRow: {
     flexDirection: "row",
@@ -177,51 +179,57 @@ const styles = StyleSheet.create({
   authorRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 9,
     flexShrink: 1,
     justifyContent: "flex-end",
   },
-  authorText: { alignItems: "flex-end", gap: 1, flexShrink: 1 },
+  authorText: { alignItems: "flex-end", gap: 2, flexShrink: 1 },
   displayName: {
     fontFamily: "Amiri_700Bold",
-    fontSize: 14,
+    fontSize: 14.5,
     textAlign: "right",
     writingDirection: "rtl",
   },
   handle: {
     fontFamily: "Inter_400Regular",
-    fontSize: 11,
+    fontSize: 11.5,
     textAlign: "right",
+    opacity: 0.6,
   },
   time: {
     fontFamily: "Inter_400Regular",
     fontSize: 11,
-    marginTop: 2,
+    marginTop: 3,
     flexShrink: 0,
+    opacity: 0.55,
   },
   body: {
     fontFamily: "Amiri_400Regular",
-    fontSize: 17,
-    lineHeight: 28,
+    fontSize: 17.5,
+    lineHeight: 29,
     textAlign: "right",
     writingDirection: "rtl",
   },
   image: {
     width: "100%",
     height: 200,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    marginTop: 4,
+    marginTop: 2,
   },
   footer: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-start",
-    gap: 14,
+    justifyContent: "space-between",
+    paddingBottom: 4,
     marginTop: 2,
   },
-  deleteBtn: { opacity: 0.5 },
-  replyBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  replyLabel: { fontFamily: "Inter_400Regular", fontSize: 12 },
-  repliesCount: { fontFamily: "Inter_400Regular", fontSize: 12 },
+  footerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  replyBtn: { flexDirection: "row", alignItems: "center", gap: 5 },
+  replyLabel: { fontFamily: "Inter_400Regular", fontSize: 12.5, opacity: 0.7 },
+  repliesCount: { fontFamily: "Inter_400Regular", fontSize: 12.5, opacity: 0.6 },
 });

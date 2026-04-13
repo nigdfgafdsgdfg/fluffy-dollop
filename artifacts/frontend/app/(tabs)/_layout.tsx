@@ -11,7 +11,8 @@ import Animated, {
 
 import { useColors } from "@/hooks/useColors";
 
-function TabIcon({
+// Custom tab icon — only used on Android
+function AndroidTabIcon({
   name,
   label,
   focused,
@@ -22,19 +23,13 @@ function TabIcon({
 }) {
   const colors = useColors();
   const scale = useSharedValue(1);
-  const dotScale = useSharedValue(focused ? 1 : 0);
 
   React.useEffect(() => {
-    scale.value = withSpring(focused ? 1.12 : 1, { damping: 10, stiffness: 260 });
-    dotScale.value = withSpring(focused ? 1 : 0, { damping: 12, stiffness: 300 });
+    scale.value = withSpring(focused ? 1.08 : 1, { damping: 10, stiffness: 260 });
   }, [focused]);
 
   const iconStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
-  }));
-  const dotStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: dotScale.value }],
-    opacity: dotScale.value,
   }));
 
   return (
@@ -42,7 +37,7 @@ function TabIcon({
       <Animated.View style={iconStyle}>
         <Feather
           name={name}
-          size={20}
+          size={22}
           color={focused ? colors.foreground : colors.mutedForeground}
         />
       </Animated.View>
@@ -52,14 +47,15 @@ function TabIcon({
           {
             color: focused ? colors.foreground : colors.mutedForeground,
             fontFamily: focused ? "Amiri_700Bold" : "Amiri_400Regular",
+            opacity: focused ? 1 : 0.5,
           },
         ]}
       >
         {label}
       </Text>
-      <Animated.View
-        style={[styles.dot, { backgroundColor: colors.accent }, dotStyle]}
-      />
+      {focused && (
+        <View style={[styles.activeDot, { backgroundColor: colors.accent }]} />
+      )}
     </View>
   );
 }
@@ -75,8 +71,25 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: colors.foreground,
         tabBarInactiveTintColor: colors.mutedForeground,
-        tabBarShowLabel: false,
-        headerShown: false,
+        // On iOS: show native labels, hide custom icon label
+        // On Android: hide native label (we render our own)
+        tabBarShowLabel: isIOS,
+        headerShown: true,
+        headerTransparent: true,
+        headerBlurEffect: isDark ? "dark" : "light",
+        headerShadowVisible: false,
+        headerTitleStyle: {
+          fontFamily: "Amiri_700Bold_Italic",
+          fontSize: 22,
+        },
+        // On iOS use native tab bar label font via tabBarLabelStyle
+        tabBarLabelStyle: isIOS
+          ? {
+              fontFamily: "Amiri_700Bold",
+              fontSize: 10,
+              writingDirection: "rtl",
+            }
+          : undefined,
         tabBarStyle: {
           position: "absolute",
           backgroundColor: isIOS ? "transparent" : colors.background,
@@ -88,29 +101,40 @@ export default function TabLayout() {
         tabBarBackground: () =>
           isIOS ? (
             <BlurView
-              intensity={85}
+              intensity={92}
               tint={isDark ? "dark" : "extraLight"}
               style={StyleSheet.absoluteFill}
             />
           ) : (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]} />
+            <View
+              style={[StyleSheet.absoluteFill, { backgroundColor: colors.background }]}
+            />
           ),
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="home" label="الرئيسية" focused={focused} />
-          ),
+          title: "الرئيسية",
+          tabBarIcon: ({ focused, color, size }) =>
+            isIOS ? (
+              // Native iOS: just the icon, system handles label + active state
+              <Feather name="home" size={size ?? 22} color={color} />
+            ) : (
+              <AndroidTabIcon name="home" label="الرئيسية" focused={focused} />
+            ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          tabBarIcon: ({ focused }) => (
-            <TabIcon name="user" label="ملفي" focused={focused} />
-          ),
+          title: "ملفي",
+          tabBarIcon: ({ focused, color, size }) =>
+            isIOS ? (
+              <Feather name="user" size={size ?? 22} color={color} />
+            ) : (
+              <AndroidTabIcon name="user" label="ملفي" focused={focused} />
+            ),
         }}
       />
     </Tabs>
@@ -121,15 +145,16 @@ const styles = StyleSheet.create({
   tabItem: {
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
     paddingTop: 6,
+    gap: 3,
+    width: 64,
   },
   tabLabel: {
     fontSize: 11,
     letterSpacing: 0.2,
     writingDirection: "rtl",
   },
-  dot: {
+  activeDot: {
     width: 4,
     height: 4,
     borderRadius: 2,

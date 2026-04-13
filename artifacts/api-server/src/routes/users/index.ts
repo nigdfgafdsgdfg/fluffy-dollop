@@ -210,6 +210,7 @@ router.get(
 
     const { limit, cursor } = query.data;
     const db = getFirestore();
+    const uid = (req as AuthenticatedRequest).uid;
 
     const userDoc = await db.collection("users").doc(params.data.userId).get();
     if (!userDoc.exists) {
@@ -217,25 +218,39 @@ router.get(
       return;
     }
 
-    const snap = await db
+    // Build a real Firestore cursor query — no in-memory sort
+    const baseQuery = db
       .collection("posts")
       .where("authorId", "==", params.data.userId)
-      .get();
+      .orderBy("createdAt", "desc");
 
-    const allDocs = snap.docs.sort((a, b) => {
-      const aTime = a.data().createdAt?.toMillis?.() ?? 0;
-      const bTime = b.data().createdAt?.toMillis?.() ?? 0;
-      return bTime - aTime;
-    });
-
-    let startIdx = 0;
+    let finalQuery = baseQuery.limit(limit + 1);
     if (cursor) {
-      const cursorIdx = allDocs.findIndex((d) => d.id === cursor);
-      if (cursorIdx !== -1) startIdx = cursorIdx + 1;
+      const cursorDoc = await db.collection("posts").doc(cursor).get();
+      if (cursorDoc.exists) {
+        finalQuery = baseQuery.startAfter(cursorDoc).limit(limit + 1);
+      }
     }
 
-    const pageDocs = allDocs.slice(startIdx, startIdx + limit);
-    const hasMore = startIdx + limit < allDocs.length;
+    const snap = await finalQuery.get();
+    const hasMore = snap.docs.length > limit;
+    const pageDocs = snap.docs.slice(0, limit);
+
+    // Resolve like status
+    const postIds = pageDocs.map((d) => d.id);
+    const likedPostIds = new Set<string>();
+
+    if (postIds.length > 0) {
+      for (let i = 0; i < postIds.length; i += 30) {
+        const batchIds = postIds.slice(i, i + 30);
+        const likesSnap = await db
+          .collection("likes")
+          .where("userId", "==", uid)
+          .where("postId", "in", batchIds)
+          .get();
+        likesSnap.docs.forEach((doc) => likedPostIds.add(doc.data().postId as string));
+      }
+    }
 
     const posts = pageDocs.map((d) => {
       const data = d.data();
@@ -248,13 +263,15 @@ router.get(
         content: data.content as string,
         likesCount: (data.likesCount as number) ?? 0,
         commentsCount: (data.commentsCount as number) ?? 0,
+        likedByMe: likedPostIds.has(d.id),
         createdAt: data.createdAt?.toDate
           ? data.createdAt.toDate().toISOString()
           : data.createdAt,
       };
     });
 
-    res.json({ posts, nextCursor: hasMore ? pageDocs[pageDocs.length - 1].id : null, hasMore });
+    const nextCursor = hasMore ? pageDocs[pageDocs.length - 1].id : null;
+    res.json({ posts, nextCursor, hasMore });
   }
 );
 

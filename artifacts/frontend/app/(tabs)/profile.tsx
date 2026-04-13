@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { useRouter } from "expo-router";
+import { useRouter, Tabs } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   FlatList,
@@ -67,25 +67,26 @@ export default function ProfileScreen() {
     [handlePostDeleted]
   );
 
+  const renderHeaderOptions = () => (
+    <Tabs.Screen
+      options={{
+        title: s.navTitle,
+        headerLeft: () => (
+          <Pressable onPress={handleSignOut} hitSlop={8} disabled={isSigningOut} style={{ paddingLeft: 20 }}>
+            <Feather name="log-out" size={18} color={isSigningOut ? colors.mutedForeground : colors.destructive} />
+          </Pressable>
+        ),
+      }}
+    />
+  );
+
   const renderHeader = () => (
     <>
-      <Animated.View
-        entering={FadeInDown.delay(0).duration(500).springify().damping(20)}
-        style={[
-          styles.navBar,
-          { paddingTop: insets.top + 8, borderBottomColor: colors.border, backgroundColor: colors.background },
-        ]}
-      >
-        <Pressable onPress={handleSignOut} hitSlop={8} disabled={isSigningOut}>
-          <Feather name="log-out" size={18} color={colors.mutedForeground} />
-        </Pressable>
-        <Text style={[styles.navTitle, { color: colors.foreground }]}>{s.navTitle}</Text>
-      </Animated.View>
-
       <Animated.View
         entering={FadeInDown.delay(80).duration(500).springify().damping(20)}
         style={[styles.profileHeader, { borderBottomColor: colors.border }]}
       >
+        {/* Avatar + Stats Row */}
         <View style={styles.avatarRow}>
           <View style={styles.statsRow}>
             <Pressable style={styles.stat} onPress={() => user?.uid && router.push(`/user/${user.uid}`)}>
@@ -98,9 +99,10 @@ export default function ProfileScreen() {
               <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{s.followers}</Text>
             </Pressable>
           </View>
-          <Avatar uri={profile?.avatarUrl} displayName={profile?.displayName ?? ""} size={64} />
+          <Avatar uri={profile?.avatarUrl} displayName={profile?.displayName ?? ""} size={66} />
         </View>
 
+        {/* Name / username / bio */}
         <View style={styles.profileInfo}>
           <Text style={[styles.displayName, { color: colors.foreground }]}>{profile?.displayName ?? ""}</Text>
           <Text style={[styles.username, { color: colors.mutedForeground }]}>@{profile?.username ?? ""}</Text>
@@ -121,6 +123,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.flex, { backgroundColor: colors.background }]}>
+      {renderHeaderOptions()}
       {isLoading && posts.length === 0 ? (
         <>{renderHeader()}<LoadingState /></>
       ) : (
@@ -129,10 +132,10 @@ export default function ProfileScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderPost}
           ListHeaderComponent={renderHeader}
-          stickyHeaderIndices={[0]}
           ListEmptyComponent={<EmptyState icon="edit-3" title={s.emptyTitle} message={s.emptyMessage} />}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.mutedForeground} />}
           showsVerticalScrollIndicator={false}
+          contentInsetAdjustmentBehavior="automatic"
           style={{ backgroundColor: colors.background }}
         />
       )}
@@ -154,37 +157,25 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  navBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  navTitle: {
-    fontFamily: "Amiri_700Bold",
-    fontSize: 18,
-    writingDirection: "rtl",
-  },
   profileHeader: {
     paddingHorizontal: 20,
-    paddingVertical: 24,
-    gap: 16,
+    paddingTop: 20,
+    paddingBottom: 24,
+    gap: 18,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   avatarRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  statsRow: { flexDirection: "row", alignItems: "center", gap: 20 },
+  statsRow: { flexDirection: "row", alignItems: "center", gap: 18 },
   stat: { alignItems: "center", gap: 2 },
-  statDivider: { width: 1, height: 28 },
+  statDivider: { width: 1, height: 26 },
   statNum: { fontFamily: "Amiri_700Bold", fontSize: 22, letterSpacing: -0.5 },
-  statLabel: { fontFamily: "Amiri_400Regular", fontSize: 13, writingDirection: "rtl" },
+  statLabel: { fontFamily: "Amiri_400Regular", fontSize: 13, writingDirection: "rtl", opacity: 0.65 },
   profileInfo: { gap: 4, alignItems: "flex-end" },
   displayName: { fontFamily: "Amiri_700Bold", fontSize: 24, letterSpacing: -0.3, textAlign: "right", writingDirection: "rtl" },
-  username: { fontFamily: "Inter_400Regular", fontSize: 14, textAlign: "right" },
+  username: { fontFamily: "Inter_400Regular", fontSize: 13.5, textAlign: "right", opacity: 0.6 },
   bio: { fontFamily: "Amiri_400Regular", fontSize: 16, lineHeight: 26, marginTop: 6, textAlign: "right", writingDirection: "rtl" },
-  sectionHeader: { paddingHorizontal: 20, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "flex-end" },
-  sectionTitle: { fontFamily: "Inter_600SemiBold", fontSize: 11, letterSpacing: 1.2, writingDirection: "rtl" },
+  sectionHeader: { paddingHorizontal: 20, paddingVertical: 11, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "flex-end" },
+  sectionTitle: { fontFamily: "Inter_600SemiBold", fontSize: 10.5, letterSpacing: 1.4, writingDirection: "rtl", opacity: 0.45, textTransform: "uppercase" },
   fab: {
     position: "absolute",
     left: 20,

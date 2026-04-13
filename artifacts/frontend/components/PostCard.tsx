@@ -5,11 +5,12 @@ import { useRouter } from "expo-router";
 import React from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
-  FadeInDown,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from "react-native-reanimated";
+
+import { useQueryClient } from "@tanstack/react-query";
 
 import { Avatar } from "@/components/Avatar";
 import { useAuth } from "@/context/AuthContext";
@@ -17,7 +18,13 @@ import { useColors } from "@/hooks/useColors";
 import strings from "@/constants/strings";
 import { resolveImageUrl } from "@/utils/imageUrl";
 import type { Post } from "@workspace/api-client-react";
-import { useDeletePost } from "@workspace/api-client-react";
+import {
+  useDeletePost,
+  useLikePost,
+  useUnlikePost,
+  getGetFeedQueryKey,
+  getGetPostQueryKey,
+} from "@workspace/api-client-react";
 
 interface PostCardProps {
   post: Post;
@@ -37,31 +44,36 @@ function formatRelativeTime(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("ar-SA", { month: "short", day: "numeric" });
 }
 
-function ActionButton({ icon, label, onPress }: {
+function ActionButton({ icon, label, onPress, active, activeColor }: {
   icon: string;
   label: string | number;
   onPress?: () => void;
+  active?: boolean;
+  activeColor?: string;
 }) {
   const colors = useColors();
   const scale = useSharedValue(1);
   const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
   const handlePress = () => {
-    scale.value = withSpring(0.75, { damping: 6, stiffness: 300 }, () => {
+    scale.value = withSpring(0.7, { damping: 5, stiffness: 320 }, () => {
       scale.value = withSpring(1, { damping: 8, stiffness: 200 });
     });
     onPress?.();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
+  const iconColor = active && activeColor ? activeColor : colors.mutedForeground;
+  const labelColor = active && activeColor ? activeColor : colors.mutedForeground;
+
   return (
-    <Pressable onPress={handlePress} style={styles.action}>
-      <Text style={[styles.actionLabel, { color: colors.mutedForeground }]}>
-        {label}
-      </Text>
+    <Pressable onPress={handlePress} style={styles.action} hitSlop={8}>
       <Animated.View style={animStyle}>
-        <Feather name={icon as any} size={14} color={colors.mutedForeground} />
+        <Feather name={icon as any} size={16} color={iconColor} />
       </Animated.View>
+      {!!label && (
+        <Text style={[styles.actionLabel, { color: labelColor }]}>{label}</Text>
+      )}
     </Pressable>
   );
 }
@@ -70,6 +82,7 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
   const colors = useColors();
   const router = useRouter();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isOwn = user?.uid === post.authorId;
   const s = strings.postCard;
 
@@ -80,8 +93,26 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
     mutation: { onSuccess: () => onDeleted?.() },
   });
 
+  const likeMutation = useLikePost({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetFeedQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(post.id) });
+      }
+    }
+  });
+
+  const unlikeMutation = useUnlikePost({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetFeedQueryKey() });
+        queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(post.id) });
+      }
+    }
+  });
+
   const handlePressIn = () => {
-    scale.value = withSpring(0.984, { damping: 20, stiffness: 400 });
+    scale.value = withSpring(0.985, { damping: 20, stiffness: 400 });
   };
   const handlePressOut = () => {
     scale.value = withSpring(1, { damping: 12, stiffness: 200 });
@@ -106,62 +137,83 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
     else router.push(`/user/${post.authorId}`);
   };
 
-  const enterDelay = Math.min(index, 8) * 70;
+  const handlePostPress = () => {
+    router.push(`/post/${post.id}`);
+  };
+
+  const handleLike = () => {
+    if (likeMutation.isPending || unlikeMutation.isPending) return;
+    if (post.likedByMe) {
+      unlikeMutation.mutate({ postId: post.id });
+    } else {
+      likeMutation.mutate({ postId: post.id });
+    }
+  };
 
   return (
-    <Animated.View
-      entering={FadeInDown.delay(enterDelay).duration(380).springify().damping(18)}
-      style={cardAnimStyle}
-    >
+    <Animated.View style={cardAnimStyle}>
       <Pressable
+        onPress={handlePostPress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        style={[styles.card, { backgroundColor: colors.background }]}
+        style={[styles.card, { borderBottomColor: colors.border }]}
       >
-        <View style={[styles.inner, { borderBottomColor: colors.border }]}>
-          <View style={styles.topRow}>
-            <Text style={[styles.time, { color: colors.mutedForeground }]}>
-              {formatRelativeTime(post.createdAt)}
-            </Text>
-            <Pressable onPress={handleUserPress} style={styles.authorRow}>
-              <View style={styles.authorText}>
-                <Text style={[styles.displayName, { color: colors.foreground }]} numberOfLines={1}>
-                  {post.authorDisplayName}
-                </Text>
-                <Text style={[styles.handle, { color: colors.mutedForeground }]} numberOfLines={1}>
-                  @{post.authorUsername}
-                </Text>
-              </View>
-              <Avatar uri={post.authorAvatarUrl} displayName={post.authorDisplayName} size={38} />
-            </Pressable>
-          </View>
-
-          {post.content.trim().length > 0 && (
-            <Text style={[styles.body, { color: colors.foreground }]}>
-              {post.content}
-            </Text>
-          )}
-
-          {resolveImageUrl(post.imageUrl) && (
-            <Image
-              source={{ uri: resolveImageUrl(post.imageUrl)! }}
-              style={[styles.postImage, { borderColor: colors.border }]}
-              contentFit="cover"
-            />
-          )}
-
-          <View style={styles.footer}>
-            {isOwn && (
-              <Pressable onPress={handleDelete} hitSlop={10} style={styles.deleteBtn}>
-                <Feather name="trash-2" size={13} color={colors.mutedForeground} />
-              </Pressable>
-            )}
-            <View style={styles.actions}>
-              <ActionButton icon="message-circle" label={post.commentsCount > 0 ? post.commentsCount : s.reply} />
-              <ActionButton icon="heart" label={post.likesCount > 0 ? post.likesCount : s.like} />
-              <ActionButton icon="share" label="" />
+        {/* Author row */}
+        <View style={styles.topRow}>
+          <Text style={[styles.time, { color: colors.mutedForeground }]}>
+            {formatRelativeTime(post.createdAt)}
+          </Text>
+          <Pressable onPress={handleUserPress} style={styles.authorRow}>
+            <View style={styles.authorText}>
+              <Text style={[styles.displayName, { color: colors.foreground }]} numberOfLines={1}>
+                {post.authorDisplayName}
+              </Text>
+              <Text style={[styles.handle, { color: colors.mutedForeground }]} numberOfLines={1}>
+                @{post.authorUsername}
+              </Text>
             </View>
+            <Avatar uri={post.authorAvatarUrl} displayName={post.authorDisplayName} size={40} />
+          </Pressable>
+        </View>
+
+        {/* Body */}
+        {post.content.trim().length > 0 && (
+          <Text style={[styles.body, { color: colors.foreground }]}>
+            {post.content}
+          </Text>
+        )}
+
+        {/* Image */}
+        {resolveImageUrl(post.imageUrl) && (
+          <Image
+            source={{ uri: resolveImageUrl(post.imageUrl)! }}
+            style={[styles.postImage, { borderColor: colors.border }]}
+            contentFit="cover"
+          />
+        )}
+
+        {/* Action bar */}
+        <View style={styles.footer}>
+          <View style={styles.actions}>
+            <ActionButton
+              icon="message-circle"
+              label={post.commentsCount > 0 ? post.commentsCount : ""}
+              onPress={handlePostPress}
+            />
+            <ActionButton
+              icon="heart"
+              label={post.likesCount > 0 ? post.likesCount : ""}
+              onPress={handleLike}
+              active={post.likedByMe}
+              activeColor={colors.destructive}
+            />
+            <ActionButton icon="share-2" label="" />
           </View>
+          {isOwn && (
+            <Pressable onPress={handleDelete} hitSlop={12} style={styles.deleteBtn}>
+              <Feather name="trash-2" size={14} color={colors.mutedForeground} style={{ opacity: 0.4 }} />
+            </Pressable>
+          )}
         </View>
       </Pressable>
     </Animated.View>
@@ -169,11 +221,12 @@ export function PostCard({ post, onDeleted, index = 0 }: PostCardProps) {
 }
 
 const styles = StyleSheet.create({
-  card: { paddingHorizontal: 20 },
-  inner: {
-    paddingVertical: 18,
-    gap: 12,
+  card: {
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
   },
   topRow: {
     flexDirection: "row",
@@ -188,10 +241,10 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     justifyContent: "flex-end",
   },
-  authorText: { alignItems: "flex-end", gap: 1, flexShrink: 1 },
+  authorText: { alignItems: "flex-end", gap: 2, flexShrink: 1 },
   displayName: {
     fontFamily: "Amiri_700Bold",
-    fontSize: 15,
+    fontSize: 15.5,
     letterSpacing: -0.1,
     textAlign: "right",
     writingDirection: "rtl",
@@ -200,25 +253,21 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 12,
     textAlign: "right",
+    opacity: 0.6,
   },
   time: {
     fontFamily: "Inter_400Regular",
-    fontSize: 11,
-    marginTop: 3,
+    fontSize: 11.5,
+    marginTop: 4,
     flexShrink: 0,
+    opacity: 0.55,
   },
   body: {
     fontFamily: "Amiri_400Regular",
     fontSize: 19,
-    lineHeight: 30,
+    lineHeight: 32,
     textAlign: "right",
     writingDirection: "rtl",
-  },
-  footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 2,
   },
   postImage: {
     width: "100%",
@@ -226,13 +275,19 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
   },
-  deleteBtn: { padding: 4, opacity: 0.5 },
-  actions: { flexDirection: "row", gap: 18, alignItems: "center" },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  deleteBtn: { padding: 4 },
+  actions: { flexDirection: "row", gap: 20, alignItems: "center" },
   action: { flexDirection: "row", alignItems: "center", gap: 5 },
   actionLabel: {
     fontFamily: "Inter_400Regular",
-    fontSize: 12,
+    fontSize: 13,
     minWidth: 14,
-    textAlign: "right",
   },
 });

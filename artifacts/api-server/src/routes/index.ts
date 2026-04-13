@@ -7,6 +7,7 @@ import followsRouter from "./follows";
 import feedRouter from "./feed";
 import commentsRouter from "./comments";
 import storageRouter from "./storage";
+import likesRouter from "./likes";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(followsRouter);
 router.use(feedRouter);
 router.use(commentsRouter);
 router.use(storageRouter);
+router.use(likesRouter);
 
 export default router;

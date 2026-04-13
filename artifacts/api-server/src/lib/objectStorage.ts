@@ -9,25 +9,28 @@ import {
   setObjectAclPolicy,
 } from "./objectAcl";
 
-const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
-
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
+function buildStorageClient(): Storage {
+  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  if (serviceAccountJson) {
+    const serviceAccount = JSON.parse(serviceAccountJson) as {
+      project_id: string;
+      client_email: string;
+      private_key: string;
+    };
+    return new Storage({
+      projectId: serviceAccount.project_id,
+      credentials: {
+        client_email: serviceAccount.client_email,
+        private_key: serviceAccount.private_key,
       },
-    },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "",
-});
+    });
+  }
+  // Fallback: application default credentials (works with gcloud auth)
+  const projectId = process.env.FIREBASE_PROJECT_ID;
+  return new Storage({ projectId: projectId ?? undefined });
+}
+
+export const objectStorageClient = buildStorageClient();
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -59,15 +62,38 @@ export class ObjectStorageService {
     return paths;
   }
 
-  getPrivateObjectDir(): string {
-    const dir = process.env.PRIVATE_OBJECT_DIR || "";
-    if (!dir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
+  getStorageBucket(): string {
+    const bucket = process.env.FIREBASE_STORAGE_BUCKET;
+    if (bucket) return bucket;
+    // Derive from service account project_id as fallback
+    const sa = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (sa) {
+      const { project_id } = JSON.parse(sa) as { project_id: string };
+      return `${project_id}.firebasestorage.app`;
     }
-    return dir;
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    if (projectId) return `${projectId}.firebasestorage.app`;
+    throw new Error(
+      "Cannot determine Firebase Storage bucket. Set FIREBASE_STORAGE_BUCKET env var."
+    );
+  }
+
+  getPrivateObjectPrefix(): string {
+    // PRIVATE_OBJECT_DIR is now treated as just the GCS key prefix within the bucket.
+    // If it looks like a full `/bucket/prefix` path, extract the prefix part.
+    const raw = process.env.PRIVATE_OBJECT_DIR || "uploads";
+    // Strip leading slash and bucket segment if someone kept the old format.
+    if (raw.startsWith("/")) {
+      const parts = raw.split("/").filter(Boolean);
+      return parts.length > 1 ? parts.slice(1).join("/") : parts[0] ?? "uploads";
+    }
+    return raw;
+  }
+
+  /** @deprecated Use getStorageBucket + getPrivateObjectPrefix instead. */
+  getPrivateObjectDir(): string {
+    // Keep backward-compat for callers that still parse this as "/bucket/prefix".
+    return `/${this.getStorageBucket()}/${this.getPrivateObjectPrefix()}`;
   }
 
   async searchPublicObject(filePath: string): Promise<File | null> {
@@ -106,26 +132,22 @@ export class ObjectStorageService {
     return new Response(webStream, { headers });
   }
 
-  async getObjectEntityUploadURL(): Promise<string> {
-    const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
-    }
-
+  async getObjectEntityUploadURL(): Promise<{ uploadURL: string; objectPath: string }> {
+    const bucketName = this.getStorageBucket();
+    const prefix = this.getPrivateObjectPrefix();
     const objectId = randomUUID();
-    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const objectName = `${prefix}/${objectId}`;
 
-    const { bucketName, objectName } = parseObjectPath(fullPath);
-
-    return signObjectURL({
+    const uploadURL = await signObjectURL({
       bucketName,
       objectName,
       method: "PUT",
       ttlSec: 900,
     });
+
+    // Return the canonical object path directly — no need to round-trip through
+    // normalizeObjectEntityPath on a signed URL (which is fragile across bucket name formats).
+    return { uploadURL, objectPath: `/objects/${objectId}` };
   }
 
   async getObjectEntityFile(objectPath: string): Promise<File> {
@@ -238,30 +260,14 @@ async function signObjectURL({
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
 }): Promise<string> {
-  const request = {
-    bucket_name: bucketName,
-    object_name: objectName,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-  const response = await fetch(
-    `${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(30_000),
-    }
-  );
-  if (!response.ok) {
-    throw new Error(
-      `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
-    );
-  }
+  const bucket = objectStorageClient.bucket(bucketName);
+  const file = bucket.file(objectName);
 
-  const { signed_url: signedURL } = await response.json();
-  return signedURL;
+  const [signedUrl] = await file.getSignedUrl({
+    version: "v4",
+    action: method === "PUT" ? "write" : method === "GET" ? "read" : method === "DELETE" ? "delete" : "read",
+    expires: Date.now() + ttlSec * 1000,
+  });
+
+  return signedUrl;
 }

@@ -49,6 +49,7 @@ export interface Post {
   likesCount: number;
   commentsCount: number;
   createdAt: string;
+  likedByMe?: boolean;
 }
 
 export interface CreatePostBody {
@@ -147,3 +148,9 @@ export type GetFeedParams = {
    */
   cursor?: string | null;
 };
+
+export interface LikeResult {
+  liked: boolean;
+  postId: string;
+  likesCount: number;
+}

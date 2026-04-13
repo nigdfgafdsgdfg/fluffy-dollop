@@ -21,7 +21,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import React, { useEffect } from "react";
-import { I18nManager, useColorScheme } from "react-native";
+import { I18nManager, useColorScheme, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -29,11 +29,24 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LoadingState } from "@/components/LoadingState";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
+import Constants from "expo-constants";
 
 I18nManager.allowRTL(true);
 I18nManager.forceRTL(true);
 
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+if (process.env.EXPO_PUBLIC_DOMAIN) {
+  setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+} else {
+  // Fallback for local development if Replit env vars are not present
+  const hostUri = Constants?.expoConfig?.hostUri;
+  if (hostUri) {
+    const ip = hostUri.split(':')[0];
+    setBaseUrl(`http://${ip}:3001`);
+  } else {
+    const isAndroid = Platform.OS === 'android';
+    setBaseUrl(`http://${isAndroid ? '10.0.2.2' : '127.0.0.1'}:3001`);
+  }
+}
 
 SplashScreen.preventAutoHideAsync();
 

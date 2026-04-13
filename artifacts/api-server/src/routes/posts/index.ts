@@ -77,6 +77,7 @@ router.get(
   "/posts/:postId",
   authenticate,
   async (req: Request, res: Response): Promise<void> => {
+    const uid = (req as AuthenticatedRequest).uid;
     const params = PostIdParamSchema.safeParse(req.params);
     if (!params.success) {
       res.status(400).json({ error: "Invalid post ID" });
@@ -91,6 +92,8 @@ router.get(
       return;
     }
 
+    const likeDoc = await db.collection("likes").doc(`${uid}_${postDoc.id}`).get();
+
     const data = postDoc.data()!;
     res.json({
       id: postDoc.id,
@@ -102,6 +105,7 @@ router.get(
       imageUrl: (data.imageUrl as string | null) ?? null,
       likesCount: (data.likesCount as number) ?? 0,
       commentsCount: (data.commentsCount as number) ?? 0,
+      likedByMe: likeDoc.exists,
       createdAt: data.createdAt?.toDate
         ? data.createdAt.toDate().toISOString()
         : data.createdAt,

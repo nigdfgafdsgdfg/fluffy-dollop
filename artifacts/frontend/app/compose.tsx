@@ -3,10 +3,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -26,8 +27,11 @@ import strings from "@/constants/strings";
 import {
   getGetFeedQueryKey,
   getGetUserPostsQueryKey,
+  getGetPostCommentsQueryKey,
+  getGetPostQueryKey,
   requestUploadUrl,
   useCreatePost,
+  useCreateComment,
 } from "@workspace/api-client-react";
 
 const MAX_CHARS = 280;
@@ -40,6 +44,7 @@ export default function ComposeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ replyToPostId?: string; replyToCommentId?: string; replyToUsername?: string }>();
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const [content, setContent] = useState("");
@@ -79,6 +84,23 @@ export default function ComposeScreen() {
     },
   });
 
+  const createComment = useCreateComment({
+    mutation: {
+      onSuccess: () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        if (params.replyToPostId) {
+          queryClient.invalidateQueries({ queryKey: getGetPostCommentsQueryKey(params.replyToPostId) });
+          queryClient.invalidateQueries({ queryKey: getGetPostQueryKey(params.replyToPostId) });
+        }
+        queryClient.invalidateQueries({ queryKey: getGetFeedQueryKey() });
+        if (user?.uid) {
+          queryClient.invalidateQueries({ queryKey: getGetUserPostsQueryKey(user.uid) });
+        }
+        router.back();
+      },
+    },
+  });
+
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") return;
@@ -93,7 +115,7 @@ export default function ComposeScreen() {
       const asset = result.assets[0];
       setImageUri(asset.uri);
       setImageMime(asset.mimeType ?? "image/jpeg");
-      setImageSize(asset.fileSize ?? 1);
+      setImageSize(Math.max(1, asset.fileSize ?? 1));
     }
   };
 
@@ -111,29 +133,44 @@ export default function ComposeScreen() {
       setIsUploading(true);
       try {
         const { uploadURL, objectPath } = await requestUploadUrl({
-          data: { name: "post-image", size: imageSize, contentType: imageMime },
+          name: "post-image", size: imageSize, contentType: imageMime,
         });
 
-        const fetchResponse = await fetch(imageUri);
-        const blob = await fetchResponse.blob();
-
-        await fetch(uploadURL, {
+        const fileResponse = await fetch(imageUri);
+        const blob = await fileResponse.blob();
+        const uploadResponse = await fetch(uploadURL, {
           method: "PUT",
-          body: blob,
           headers: { "Content-Type": imageMime },
+          body: blob,
         });
+        if (!uploadResponse.ok) {
+          throw new Error(`Upload failed with status ${uploadResponse.status}`);
+        }
 
         imageUrl = objectPath;
-      } catch {
+      } catch (error) {
+        console.error("Upload error:", error);
+        Alert.alert("Upload Failed", "Failed to upload image. Please try again.");
         setIsUploading(false);
         return;
       }
       setIsUploading(false);
     }
 
-    createPost.mutate({
-      data: { content: content.trim(), imageUrl },
-    });
+    if (params.replyToPostId) {
+      createComment.mutate({
+        postId: params.replyToPostId,
+        data: {
+          content: content.trim(),
+          imageUrl,
+          parentCommentId: params.replyToCommentId ?? null,
+        },
+      });
+    } else {
+      createPost.mutate({
+        data: { content: content.trim(), imageUrl },
+      });
+    }
   };
 
   const handleCancel = () => {
@@ -141,7 +178,7 @@ export default function ComposeScreen() {
     router.back();
   };
 
-  const isBusy = isUploading || createPost.isPending;
+  const isBusy = isUploading || createPost.isPending || createComment.isPending;
 
   return (
     <KeyboardAvoidingView
@@ -181,12 +218,12 @@ export default function ComposeScreen() {
               },
             ]}
           >
-            {isUploading ? s.uploadingImage : createPost.isPending ? s.publishing : s.publish}
+            {isUploading ? s.uploadingImage : (createPost.isPending || createComment.isPending) ? s.publishing : s.publish}
           </Text>
         </Pressable>
 
         <Text style={[styles.headerTitle, { color: colors.mutedForeground }]}>
-          {s.headerTitle}
+          {params.replyToUsername ? s.headerTitle + ` (@${params.replyToUsername})` : s.headerTitle}
         </Text>
 
         <Pressable onPress={handleCancel} hitSlop={8} style={styles.cancelBtn}>
@@ -255,7 +292,7 @@ export default function ComposeScreen() {
         ]}
       >
         <View style={styles.footerLeft}>
-          {createPost.isError ? (
+          {(createPost.isError || createComment.isError) ? (
             <Text style={[styles.errorText, { color: colors.destructive }]}>
               {s.errorPost}
             </Text>

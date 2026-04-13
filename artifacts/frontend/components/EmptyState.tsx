@@ -18,8 +18,8 @@ export function EmptyState({ icon, title, message }: EmptyStateProps) {
       entering={FadeInDown.duration(500).springify().damping(18)}
       style={styles.container}
     >
-      <View style={[styles.iconWrap, { borderColor: colors.border }]}>
-        <Feather name={icon} size={22} color={colors.mutedForeground} />
+      <View style={[styles.iconWrap, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Feather name={icon} size={24} color={colors.mutedForeground} />
       </View>
       <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
       <Text style={[styles.message, { color: colors.mutedForeground }]}>{message}</Text>
@@ -32,18 +32,23 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 48,
+    paddingHorizontal: 52,
     gap: 10,
     paddingVertical: 80,
   },
   iconWrap: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    marginBottom: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
   },
   title: {
     fontFamily: "Amiri_700Bold",
@@ -53,9 +58,10 @@ const styles = StyleSheet.create({
   },
   message: {
     fontFamily: "Amiri_400Regular",
-    fontSize: 16,
+    fontSize: 15.5,
     textAlign: "center",
     lineHeight: 26,
     writingDirection: "rtl",
+    opacity: 0.7,
   },
 });
